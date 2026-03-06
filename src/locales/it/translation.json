@@ -225,6 +225,9 @@
         "yesterday": "Ieri"
       },
       "transcriptionFailed": "La trascrizione è fallita",
+      "failedCtaSettings": "Configura il tuo provider di trascrizione",
+      "failedCtaAndRetry": "poi clicca su riprova",
+      "failedCtaSettingsOnly": "Configura il tuo provider di trascrizione nelle Impostazioni",
       "clearAll": "Cancella tutto",
       "clearAllTitle": "Cancella tutte le trascrizioni",
       "clearAllDescription": "Tutte le trascrizioni e i file audio verranno rimossi definitivamente.",

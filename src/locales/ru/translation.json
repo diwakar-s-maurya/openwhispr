@@ -225,6 +225,9 @@
         "yesterday": "Вчера"
       },
       "transcriptionFailed": "Транскрипция не удалась",
+      "failedCtaSettings": "Настройте провайдер транскрипции",
+      "failedCtaAndRetry": "затем нажмите повторить",
+      "failedCtaSettingsOnly": "Настройте провайдер транскрипции в Настройках",
       "clearAll": "Очистить все",
       "clearAllTitle": "Очистить все транскрипции",
       "clearAllDescription": "Все транскрипции и аудиофайлы будут безвозвратно удалены.",

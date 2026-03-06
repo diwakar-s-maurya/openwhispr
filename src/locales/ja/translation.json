@@ -225,6 +225,9 @@
         "yesterday": "昨日"
       },
       "transcriptionFailed": "文字起こしに失敗しました",
+      "failedCtaSettings": "文字起こしプロバイダーを設定してください",
+      "failedCtaAndRetry": "その後、再試行をクリックしてください",
+      "failedCtaSettingsOnly": "設定で文字起こしプロバイダーを設定してください",
       "clearAll": "すべて削除",
       "clearAllTitle": "すべての文字起こしを削除",
       "clearAllDescription": "すべての文字起こしと音声ファイルが完全に削除されます。",

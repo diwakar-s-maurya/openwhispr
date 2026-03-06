@@ -288,6 +288,7 @@ export default function HistoryView({
                           onDelete={deleteTranscription}
                           onShowAudioInFolder={onShowAudioInFolder}
                           onRetryTranscription={onRetryTranscription}
+                          onOpenSettings={() => onOpenSettings("transcription")}
                         />
                       ))}
                     </div>

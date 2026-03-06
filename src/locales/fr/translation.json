@@ -225,6 +225,9 @@
         "yesterday": "Hier"
       },
       "transcriptionFailed": "La transcription a échoué",
+      "failedCtaSettings": "Configurez votre fournisseur de transcription",
+      "failedCtaAndRetry": "puis cliquez sur réessayer",
+      "failedCtaSettingsOnly": "Configurez votre fournisseur de transcription dans les Paramètres",
       "clearAll": "Tout effacer",
       "clearAllTitle": "Effacer toutes les transcriptions",
       "clearAllDescription": "Toutes les transcriptions et fichiers audio seront définitivement supprimés.",

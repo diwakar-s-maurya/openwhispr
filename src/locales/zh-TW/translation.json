@@ -225,6 +225,9 @@
         "yesterday": "昨天"
       },
       "transcriptionFailed": "轉錄失敗",
+      "failedCtaSettings": "設定您的轉錄服務供應商",
+      "failedCtaAndRetry": "然後點擊重試",
+      "failedCtaSettingsOnly": "在設定中配置您的轉錄服務供應商",
       "clearAll": "全部清除",
       "clearAllTitle": "清除所有轉錄",
       "clearAllDescription": "所有轉錄和音訊檔案將被永久刪除。",
