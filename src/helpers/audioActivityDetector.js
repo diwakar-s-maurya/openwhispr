@@ -18,6 +18,16 @@ class AudioActivityDetector extends EventEmitter {
     this.hasPrompted = false;
     this.lastDismissedAt = null;
     this._micCheckBinary = null;
+    this._userRecording = false;
+  }
+
+  setUserRecording(active) {
+    this._userRecording = active;
+    if (active) {
+      this.consecutiveChecks = 0;
+      this.audioActiveStart = null;
+    }
+    debugLogger.debug("User recording state changed", { active }, "meeting");
   }
 
   start() {
@@ -60,6 +70,7 @@ class AudioActivityDetector extends EventEmitter {
   _check() {
     if (this.lastDismissedAt && Date.now() - this.lastDismissedAt < COOLDOWN_MS) return;
     if (this.hasPrompted) return;
+    if (this._userRecording) return;
 
     const active = this._isMicActive();
     debugLogger.debug(

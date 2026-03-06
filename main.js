@@ -261,6 +261,7 @@ function initializeCoreManagers() {
     windowManager,
     databaseManager
   );
+  windowManager.meetingDetectionEngine = meetingDetectionEngine;
   updateManager = new UpdateManager();
   windowsKeyManager = new WindowsKeyManager();
   textEditMonitor = new TextEditMonitor();
@@ -495,9 +496,14 @@ async function startApp() {
   session.defaultSession.setDisplayMediaRequestHandler(async (_request, callback) => {
     try {
       const sources = await desktopCapturer.getSources({ types: ["screen"] });
-      debugLogger.debug("Display media sources", { count: sources.length, names: sources.map((s) => s.name) });
+      debugLogger.debug("Display media sources", {
+        count: sources.length,
+        names: sources.map((s) => s.name),
+      });
       if (!sources.length) {
-        debugLogger.error("No screen sources available — Screen Recording permission may be denied");
+        debugLogger.error(
+          "No screen sources available — Screen Recording permission may be denied"
+        );
         callback({});
         return;
       }
@@ -664,8 +670,7 @@ async function startApp() {
               }
             }, MIN_HOLD_DURATION_MS);
           } else {
-            windowManager.showDictationPanel();
-            windowManager.mainWindow.webContents.send("toggle-dictation");
+            windowManager.sendToggleDictation();
           }
         } else {
           debugLogger?.debug("[Globe] Ignored — mainWindow not live");
@@ -745,8 +750,7 @@ async function startApp() {
           }
         }, MIN_HOLD_DURATION_MS);
       } else {
-        windowManager.showDictationPanel();
-        windowManager.mainWindow.webContents.send("toggle-dictation");
+        windowManager.sendToggleDictation();
       }
     });
 
@@ -820,8 +824,7 @@ async function startApp() {
       if (activationMode === "push") {
         windowManager.startWindowsPushToTalk();
       } else if (activationMode === "tap") {
-        windowManager.showDictationPanel();
-        windowManager.mainWindow.webContents.send("toggle-dictation");
+        windowManager.sendToggleDictation();
       }
     });
 

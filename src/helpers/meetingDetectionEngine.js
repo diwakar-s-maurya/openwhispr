@@ -191,6 +191,10 @@ class MeetingDetectionEngine {
     }
   }
 
+  setUserRecording(active) {
+    this.audioActivityDetector.setUserRecording(active);
+  }
+
   setPreferences(prefs) {
     debugLogger.info("Updating detection preferences", prefs, "meeting");
     Object.assign(this.preferences, prefs);

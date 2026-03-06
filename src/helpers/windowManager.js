@@ -35,6 +35,7 @@ class WindowManager {
     this._floatingIconAutoHide = false;
     this._agentAnimationState = null;
     this._panelStartPosition = "bottom-right";
+    this._isDictatingToggle = false;
 
     app.on("before-quit", () => {
       this.isQuitting = true;
@@ -220,8 +221,7 @@ class WindowManager {
       // Capture target app PID before the window might steal focus
       if (this.textEditMonitor) this.textEditMonitor.captureTargetPid();
 
-      this.showDictationPanel();
-      this.mainWindow.webContents.send("toggle-dictation");
+      this.sendToggleDictation();
     };
   }
 
@@ -403,6 +403,18 @@ class WindowManager {
     this.winPushState = null;
   }
 
+  sendToggleDictation() {
+    if (this.hotkeyManager.isInListeningMode()) {
+      return;
+    }
+    if (this.mainWindow && !this.mainWindow.isDestroyed()) {
+      this.showDictationPanel();
+      this.mainWindow.webContents.send("toggle-dictation");
+      this._isDictatingToggle = !this._isDictatingToggle;
+      this.meetingDetectionEngine?.setUserRecording(this._isDictatingToggle);
+    }
+  }
+
   sendStartDictation() {
     if (this.hotkeyManager.isInListeningMode()) {
       return;
@@ -410,6 +422,7 @@ class WindowManager {
     if (this.mainWindow && !this.mainWindow.isDestroyed()) {
       this.showDictationPanel();
       this.mainWindow.webContents.send("start-dictation");
+      this.meetingDetectionEngine?.setUserRecording(true);
     }
   }
 
@@ -419,6 +432,8 @@ class WindowManager {
     }
     if (this.mainWindow && !this.mainWindow.isDestroyed()) {
       this.mainWindow.webContents.send("stop-dictation");
+      this._isDictatingToggle = false;
+      this.meetingDetectionEngine?.setUserRecording(false);
     }
   }
 
