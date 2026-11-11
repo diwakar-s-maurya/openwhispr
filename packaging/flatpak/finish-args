@@ -1,9 +1,14 @@
 # flatpak build-finish arguments for local.surface.OpenWhispr, one per line.
 # Deliberately absent: --share=network, --share=ipc, --socket=x11,
 # --socket=fallback-x11, --filesystem=home/host, --device=all, --talk-name=*.
+# (Only the two tray names below are on the session bus.)
 # Portals (GlobalShortcuts, RemoteDesktop, Clipboard, OpenURI) are reachable
 # through xdg-desktop-portal without extra permissions.
 --socket=wayland
 --socket=pulseaudio
 --device=dri
 --filesystem=xdg-run/openwhispr-net:ro
+# Tray icon (StatusNotifierItem): talk to the tray host and own the one item
+# name Chromium registers (pid 2 inside the sandbox, first icon).
+--talk-name=org.kde.StatusNotifierWatcher
+--own-name=org.freedesktop.StatusNotifierItem-2-1
