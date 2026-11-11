@@ -1,6 +1,7 @@
 const fs = require("fs");
 const os = require("os");
 const { spawnSync } = require("child_process");
+const { PortalInputSession } = require("./portalInput");
 const { dialog } = require("electron");
 const { getLinuxSessionInfo } = require("./linuxSession");
 
@@ -86,6 +87,9 @@ function userInInputGroup() {
 
 async function ensureYdotool() {
   if (process.platform !== "linux") return;
+  // Pastes go through the desktop portal (portalInput.js); a sandbox has no
+  // ydotool or /dev/uinput to set up.
+  if (PortalInputSession.shouldUse()) return;
 
   const sessionType = (process.env.XDG_SESSION_TYPE || "").toLowerCase();
   if (sessionType !== "wayland" && !process.env.WAYLAND_DISPLAY) return;

@@ -338,3 +338,42 @@ test("outside a Flatpak, nothing changes unless opted in", (t) => {
   const manager = new ClipboardManager();
   assert.equal(manager._getPortalInput(), null);
 });
+
+test("inside a Flatpak the ydotool setup check stays quiet", async (t) => {
+  onLinux(t);
+  const savedEnv = { ...process.env };
+  t.after(() => {
+    for (const key of Object.keys(process.env)) if (!(key in savedEnv)) delete process.env[key];
+    Object.assign(process.env, savedEnv);
+  });
+  process.env.FLATPAK_ID = "org.example.OpenWhispr";
+  process.env.XDG_SESSION_TYPE = "wayland";
+
+  const spawned = [];
+  const dialogs = [];
+  const modulePath = require.resolve("../../src/helpers/ensureYdotool");
+  delete require.cache[modulePath];
+  const originalLoad = Module._load;
+  Module._load = function (request, parent, isMain) {
+    if (request === "electron") return { dialog: { showMessageBox: (o) => dialogs.push(o) } };
+    if (request === "child_process") {
+      return {
+        ...require("node:child_process"),
+        spawnSync: (...args) => {
+          spawned.push(args);
+          return { status: 1, stdout: Buffer.alloc(0) };
+        },
+      };
+    }
+    return originalLoad.call(this, request, parent, isMain);
+  };
+  let ensureYdotool;
+  try {
+    ({ ensureYdotool } = require("../../src/helpers/ensureYdotool"));
+  } finally {
+    Module._load = originalLoad;
+  }
+  await ensureYdotool();
+  assert.deepEqual(spawned, []);
+  assert.deepEqual(dialogs, []);
+});
