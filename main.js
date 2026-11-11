@@ -830,6 +830,14 @@ function handleEnterpriseAudioLink(url) {
   return true;
 }
 
+// Defaults for every web contents, including any window added later: no
+// <webview>, and no window.open unless the window installs its own handler
+// (WindowManager.registerExternalLinkHandlers replaces this one).
+app.on("web-contents-created", (_event, contents) => {
+  contents.on("will-attach-webview", (event) => event.preventDefault());
+  contents.setWindowOpenHandler(() => ({ action: "deny" }));
+});
+
 app.on("open-url", (event, url) => {
   event.preventDefault();
   if (!url.startsWith(`${OAUTH_PROTOCOL}://`)) return;

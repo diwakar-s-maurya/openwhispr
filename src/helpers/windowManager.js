@@ -2031,6 +2031,7 @@ class WindowManager {
       ...position,
     });
     this.notificationWindow = win;
+    this.registerExternalLinkHandlers(win, false);
 
     // "closed" fires asynchronously, so a replaced prompt's window emits it
     // after the replacement already took over the reference and the countdown.
