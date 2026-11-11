@@ -177,6 +177,7 @@ import {
 import { normalizeAgentSelectionContext } from "../utils/agentSelectionContext";
 import { getAgentName } from "../utils/agentName";
 import { shouldDisplayDictationPreview } from "../utils/transcriptionPreview";
+
 import {
   buildSelectionEditSystemPrompt,
   buildSelectionEditUserPrompt,
@@ -202,6 +203,9 @@ import {
   hasOrukeetExperiment,
   ORUKEET_EXPERIMENT_CONFIG_TTL_MS,
 } from "./dictationStreamingRouting";
+
+// How long recording continues after a stop (see stopRecording).
+const RECORDING_STOP_TAIL_MS = 400;
 
 const REASONING_CACHE_TTL = 30000; // 30 seconds
 // A server-side rollout change (a provider switched on or rolled back) must
@@ -2038,7 +2042,20 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
       return true;
     }
     if (this.mediaRecorder?.state === "recording") {
-      this.mediaRecorder.stop();
+      // Keep recording briefly after the stop: a Bluetooth headset delivers its
+      // mic audio 100-300 ms late, so stopping on the keypress cuts off the last
+      // word. A second stop inside the tail is a no-op; a cancel still discards.
+      if (this._stopTailTimer) return true;
+      const recorder = this.mediaRecorder;
+      const tailMs = this.stopTailMs ?? RECORDING_STOP_TAIL_MS;
+      if (tailMs <= 0) {
+        recorder.stop();
+        return true;
+      }
+      this._stopTailTimer = setTimeout(() => {
+        this._stopTailTimer = null;
+        if (recorder.state === "recording") recorder.stop();
+      }, tailMs);
       return true;
     }
     if (this.isRecording && !this.isStreaming) {
@@ -2093,6 +2110,8 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
   }
 
   cancelRecording() {
+    clearTimeout(this._stopTailTimer);
+    this._stopTailTimer = null;
     this._cancelActivationCapture(this._takeActivationCapture());
     this.micRecovery.stop();
     if (this._rotatingBatchRecorder) {
