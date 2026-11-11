@@ -50,13 +50,6 @@ test("a second stop inside the tail doesn't stop twice or extend it", async (t) 
   assert.equal(recorder.stops, 1);
 });
 
-test("stopTailMs = 0 stops at once", async (t) => {
-  const { manager, recorder } = await createManager(t);
-  manager.stopTailMs = 0;
-  manager.stopRecording();
-  assert.equal(recorder.stops, 1);
-});
-
 test("a cancel inside the tail drops the pending stop", async (t) => {
   const { manager, recorder } = await createManager(t);
   t.mock.timers.enable({ apis: ["setTimeout"] });

@@ -177,7 +177,6 @@ import {
 import { normalizeAgentSelectionContext } from "../utils/agentSelectionContext";
 import { getAgentName } from "../utils/agentName";
 import { shouldDisplayDictationPreview } from "../utils/transcriptionPreview";
-
 import {
   buildSelectionEditSystemPrompt,
   buildSelectionEditUserPrompt,
@@ -2047,15 +2046,10 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
       // word. A second stop inside the tail is a no-op; a cancel still discards.
       if (this._stopTailTimer) return true;
       const recorder = this.mediaRecorder;
-      const tailMs = this.stopTailMs ?? RECORDING_STOP_TAIL_MS;
-      if (tailMs <= 0) {
-        recorder.stop();
-        return true;
-      }
       this._stopTailTimer = setTimeout(() => {
         this._stopTailTimer = null;
         if (recorder.state === "recording") recorder.stop();
-      }, tailMs);
+      }, RECORDING_STOP_TAIL_MS);
       return true;
     }
     if (this.isRecording && !this.isStreaming) {
