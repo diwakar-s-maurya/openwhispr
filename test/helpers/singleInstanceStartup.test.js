@@ -38,6 +38,7 @@ function runStartup({ lockAvailable, hidden }) {
     },
     "./src/helpers/hardenedEgress": { setupHardenedEgress: () => false },
     "./src/helpers/hotkeyRepeatGate": { createHotkeyRepeatGate() {} },
+    "./src/helpers/linuxDesktopName": { getLinuxDesktopName: () => "open-whispr.desktop" },
     "./src/helpers/linuxGpuCompositing": { shouldDisableGpuCompositing: () => false },
     "./src/helpers/linuxUrlSchemeHandler": {
       registerLinuxUrlSchemeHandler: () => ({ registered: true }),
