@@ -12,8 +12,8 @@
 //   2. sends `ws` WebSocket connections through the proxy (ws ignores the
 //      environment proxy that Node's own http/https/fetch honour);
 //   3. cancels, inside the app, any web request to a host outside the list
-//      below, and grants web contents microphone access only (defence in depth;
-//      the host proxy holds the same list).
+//      below, and grants web contents only the microphone and clipboard
+//      writes (defence in depth; the host proxy holds the same list).
 const net = require("net");
 
 // Keep in sync with host/openwhispr-net/allowlist.txt.

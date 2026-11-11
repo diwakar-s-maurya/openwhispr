@@ -4,7 +4,7 @@
     "Name": "OpenWhispr pill corner",
     "Description": "Keeps the OpenWhispr dictation pill in the chosen corner (Wayland apps cannot place their own windows).",
     "License": "MIT",
-    "Version": "1.1"
+    "Version": "1.2"
   },
   "X-Plasma-API": "javascript",
   "X-Plasma-API-Minimum-Version": "6.0",

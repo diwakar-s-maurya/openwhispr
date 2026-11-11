@@ -2,6 +2,8 @@
 # or recreate in System Settings > Window Management > Window Rules).
 # Native Wayland gives apps no way to skip the taskbar, stay on top or refuse
 # focus; the original app gets these from X11 hints under XWayland.
+# The pill is matched by the "[position]" suffix the app adds to its title
+# under native Wayland, which is the same in every language.
 [General]
 count=1
 rules=a6d7c3e2-0f5b-4c1e-9d2a-0e7b5f1c4a01
@@ -20,8 +22,8 @@ skipswitcher=true
 skipswitcherrule=2
 skiptaskbar=true
 skiptaskbarrule=2
-title=Voice Recorder
-titlematch=2
+title=\\[(bottom-right|bottom-left|center)\\]$
+titlematch=3
 types=1
 wmclass=local.surface.OpenWhispr
 wmclassmatch=1

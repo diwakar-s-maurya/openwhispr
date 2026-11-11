@@ -109,7 +109,7 @@ test("the bridge pipes loopback TCP to the unix socket both ways", async (t) => 
   assert.equal(reply, "echo:ping");
 });
 
-test("session guards cancel unlisted requests and grant only the microphone", () => {
+test("session guards cancel unlisted requests and grant only the microphone and clipboard writes", () => {
   let filter;
   let onRequest;
   let requestHandler;

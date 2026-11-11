@@ -17,8 +17,6 @@ export NODE_USE_ENV_PROXY=1
 export TMPDIR="${XDG_RUNTIME_DIR}/app/${FLATPAK_ID}"
 # The model catalog ships with the app; never fetch one at runtime.
 export OPENWHISPR_MODEL_REGISTRY_MODE=bundled
-# Wayland app_id, so the desktop matches windows to the .desktop entry.
-export CHROME_DESKTOP=local.surface.OpenWhispr.desktop
 exec zypak-wrapper /app/openwhispr/open-whispr-app \
   --ozone-platform=wayland \
   --enable-features=WaylandWindowDecorations \

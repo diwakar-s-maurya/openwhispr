@@ -9,10 +9,12 @@ const cloudOnly = require("./electron-builder.cloud-only.cjs");
 
 const FLATPAK_BIN = ["linux-portal-input"];
 
+// What each base resource becomes in the Flatpak; null leaves it out.
 function flatpakResource(resource) {
-  if (typeof resource === "object" && resource.from === "resources/bin/") {
-    return { ...resource, filter: FLATPAK_BIN };
-  }
+  if (resource === ".env") return null; // no bundled .env
+  if (typeof resource !== "object") return resource;
+  if (/mediaremote/.test(resource.from)) return null; // macOS only
+  if (resource.from === "resources/bin/") return { ...resource, filter: FLATPAK_BIN };
   return resource;
 }
 
@@ -20,13 +22,10 @@ module.exports = {
   ...cloudOnly,
   publish: null,
   files: [...cloudOnly.files, "!**/node_modules/electron-updater/**"],
-  extraResources: cloudOnly.extraResources
-    // No bundled .env, and no macOS MediaRemote helper.
-    .filter((r) => r !== ".env" && !(typeof r === "object" && /mediaremote/.test(r.from)))
-    .map(flatpakResource),
+  extraResources: cloudOnly.extraResources.map(flatpakResource).filter(Boolean),
   linux: { ...cloudOnly.linux, target: ["dir"] },
   extraMetadata: {
     ...cloudOnly.extraMetadata,
-    openwhisprBuild: { ...cloudOnly.extraMetadata.openwhisprBuild, updater: false, flatpak: true },
+    openwhisprBuild: { ...cloudOnly.extraMetadata.openwhisprBuild, updater: false },
   },
 };

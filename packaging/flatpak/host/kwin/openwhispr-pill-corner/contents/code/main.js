@@ -1,25 +1,17 @@
 // Places the OpenWhispr dictation pill like the app does under X11: 4 px in
 // from the bottom edge of the work area, at the corner (or centre) chosen in
 // the app's "panel start position" setting. Wayland apps cannot place their
-// own windows, so the app appends the setting to the pill's title, e.g.
-// "Voice Recorder [bottom-left]". The pill grows for menus and errors; the
-// chosen corner stays fixed, so it grows away from the screen edge.
+// own windows, so under native Wayland the app appends the setting to the
+// pill's title, e.g. "Voice Recorder [bottom-left]". The suffix is the same in
+// every language; the title before it is translated. The pill grows for menus
+// and errors; the chosen corner stays fixed, so it grows away from the edge.
+const APP_ID = "local.surface.OpenWhispr";
+const PLACEMENT = /\[(bottom-right|bottom-left|center)\]$/;
 const MARGIN = 4;
 
-function isPill(w) {
-  return w && w.resourceClass == "local.surface.OpenWhispr" &&
-    String(w.caption).indexOf("Voice Recorder") == 0;
-}
-
-function sideOf(w) {
-  const m = /\[(bottom-right|bottom-left|center)\]\s*$/.exec(String(w.caption));
-  return m ? m[1] : "bottom-right";
-}
-
-function anchor(w) {
+function anchor(w, side) {
   const area = workspace.clientArea(KWin.MaximizeArea, w);
   const g = w.frameGeometry;
-  const side = sideOf(w);
   let x;
   if (side == "bottom-left") x = area.x + MARGIN;
   else if (side == "center") x = area.x + (area.width - g.width) / 2;
@@ -32,9 +24,12 @@ function anchor(w) {
 }
 
 function track(w) {
-  if (!w || w.resourceClass != "local.surface.OpenWhispr" || w.owPillTracked) return;
+  if (!w || w.resourceClass != APP_ID || w.owPillTracked) return;
   w.owPillTracked = true;
-  const update = () => { if (isPill(w)) anchor(w); };
+  const update = () => {
+    const match = PLACEMENT.exec(String(w.caption));
+    if (match) anchor(w, match[1]);
+  };
   w.frameGeometryChanged.connect(update);
   w.captionChanged.connect(update);
   w.outputChanged.connect(update);

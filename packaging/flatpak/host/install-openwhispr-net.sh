@@ -13,7 +13,6 @@ if systemctl is-active --quiet tinyproxy 2>/dev/null; then
 fi
 
 [ -r /etc/openwhispr-net/allowlist.txt ] || { echo "run: sudo $HERE/install-openwhispr-net-root.sh"; exit 1; }
-rm -rf "$HOME/.config/openwhispr-net"   # old per-user copy from the first install attempt
 install -d "$UNITS"
 install -m 644 "$HERE/systemd/openwhispr-net.socket" "$HERE/systemd/openwhispr-net.service" \
   "$HERE/systemd/openwhispr-net-tinyproxy.service" "$UNITS/"
