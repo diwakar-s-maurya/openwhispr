@@ -74,6 +74,16 @@ Requires Node.js 24+. See the [full documentation](https://docs.openwhispr.com/q
 
 The commands above run the desktop application, which remains at the repository root. The Expo mobile application lives in [`openwhispr-mobile`](openwhispr-mobile/) with its own dependencies, lockfile, build configuration, and release process. See the [mobile README](openwhispr-mobile/README.md) for its setup instructions.
 
+### Packaging without the auto-updater
+
+Builds that are updated through another channel (distro packages, Flatpak, managed fleets) can turn the updater off at package time:
+
+```bash
+npx electron-builder --linux -c.extraMetadata.openwhisprBuild.updater=false -c.publish=null
+```
+
+The app then never loads `electron-updater`, never checks for updates and shows updates as managed by the system.
+
 ## Documentation
 
 Visit **[docs.openwhispr.com](https://docs.openwhispr.com)** for:

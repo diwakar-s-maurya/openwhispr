@@ -1,8 +1,25 @@
-const { autoUpdater } = require("electron-updater");
+// A build can turn the updater off for good (distro packages, Flatpak, managed
+// deployments that update through their own channel) by packaging with
+// extraMetadata.openwhisprBuild.updater = false. electron-updater is then never
+// loaded and can be left out of the package.
+function updaterDisabledByBuild() {
+  try {
+    return require("../package.json").openwhisprBuild?.updater === false;
+  } catch {
+    return false;
+  }
+}
 
 // electron-updater can only replace an AppImage on Linux; deb, rpm and tar.gz
 // installs are updated by the package manager instead.
-const isUpdaterSupported = process.platform !== "linux" || Boolean(process.env.APPIMAGE);
+const isUpdaterSupported =
+  !updaterDisabledByBuild() && (process.platform !== "linux" || Boolean(process.env.APPIMAGE));
+
+let electronUpdater = null;
+function getAutoUpdater() {
+  electronUpdater ??= require("electron-updater").autoUpdater;
+  return electronUpdater;
+}
 
 class UpdateManager {
   constructor() {
@@ -27,9 +44,10 @@ class UpdateManager {
   }
 
   setupAutoUpdater() {
-    if (process.env.NODE_ENV === "development") {
+    if (process.env.NODE_ENV === "development" || !isUpdaterSupported) {
       return;
     }
+    const autoUpdater = getAutoUpdater();
 
     autoUpdater.setFeedURL({
       provider: "github",
@@ -128,6 +146,7 @@ class UpdateManager {
       },
     };
 
+    const autoUpdater = getAutoUpdater();
     Object.entries(handlers).forEach(([event, handler]) => {
       autoUpdater.on(event, handler);
       this.eventListeners.push({ event, handler });
@@ -173,7 +192,7 @@ class UpdateManager {
       }
 
       console.log("🔍 Checking for updates...");
-      const result = await autoUpdater.checkForUpdates();
+      const result = await getAutoUpdater().checkForUpdates();
 
       if (result?.isUpdateAvailable && result?.updateInfo) {
         console.log("📋 Update available:", result.updateInfo.version);
@@ -206,6 +225,13 @@ class UpdateManager {
         };
       }
 
+      if (!isUpdaterSupported) {
+        return {
+          success: false,
+          message: "Updates are installed through the system package manager",
+        };
+      }
+
       if (this.isDownloading) {
         return {
           success: true,
@@ -222,7 +248,7 @@ class UpdateManager {
 
       this.isDownloading = true;
       console.log("📥 Starting update download...");
-      await autoUpdater.downloadUpdate();
+      await getAutoUpdater().downloadUpdate();
       console.log("📥 Download initiated successfully");
 
       return { success: true, message: "Update download started" };
@@ -260,7 +286,7 @@ class UpdateManager {
       console.log("🔄 Installing update and restarting...");
 
       const isSilent = process.platform === "win32";
-      autoUpdater.quitAndInstall(isSilent, true);
+      getAutoUpdater().quitAndInstall(isSilent, true);
 
       return { success: true, message: "Update installation started" };
     } catch (error) {
@@ -313,13 +339,18 @@ class UpdateManager {
   // replace the executable a reset relaunch starts (an AppImage even moves to a new
   // file name).
   deferInstallOnQuit() {
-    autoUpdater.autoInstallOnAppQuit = false;
+    if (!isUpdaterSupported) return;
+    getAutoUpdater().autoInstallOnAppQuit = false;
   }
 
   // On macOS a finished download is handed to Squirrel.Mac, which installs it on any
   // quit from then on; MacUpdater records that hand-off in squirrelDownloadedUpdate.
   hasStagedUpdate() {
-    return process.platform === "darwin" && autoUpdater.squirrelDownloadedUpdate === true;
+    return (
+      process.platform === "darwin" &&
+      isUpdaterSupported &&
+      getAutoUpdater().squirrelDownloadedUpdate === true
+    );
   }
 
   _autoDownloadIfEnabled() {
@@ -333,9 +364,11 @@ class UpdateManager {
   // updates are off; a failed background check is logged and never surfaced.
   _autoCheckForUpdates(label) {
     console.log(`🔄 ${label} update check...`);
-    autoUpdater.checkForUpdates().catch((err) => {
-      console.error(`${label} update check failed:`, err);
-    });
+    getAutoUpdater()
+      .checkForUpdates()
+      .catch((err) => {
+        console.error(`${label} update check failed:`, err);
+      });
   }
 
   checkForUpdatesOnStartup() {
@@ -357,7 +390,7 @@ class UpdateManager {
       this.updateCheckInterval = null;
     }
     this.eventListeners.forEach(({ event, handler }) => {
-      autoUpdater.removeListener(event, handler);
+      getAutoUpdater().removeListener(event, handler);
     });
     this.eventListeners = [];
     if (this.handleBeforeQuitForUpdate) {
@@ -371,3 +404,4 @@ class UpdateManager {
 }
 
 module.exports = UpdateManager;
+module.exports.updaterDisabledByBuild = updaterDisabledByBuild;
