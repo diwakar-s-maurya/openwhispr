@@ -105,10 +105,26 @@ class EnvironmentManager {
   // both no-ops on fresh installs, so neither path triggers Keychain until
   // the user actually saves their first secret.
   async init() {
-    if (!fs.existsSync(this._getMigrationSentinelPath())) {
+    if (!fs.existsSync(this._getMigrationSentinelPath()) || this._hasPlaintextSecrets()) {
       await this._migrateToSecureStorage();
     }
     await this._loadAllSecrets();
+  }
+
+  // A secret saved while no encryption backend was available stays in the
+  // userData .env in plain text. Once encryption becomes available (a keyring
+  // installed later, or the Secret portal), migrate it; otherwise the next .env
+  // rewrite would strip it without having stored it anywhere.
+  _hasPlaintextSecrets() {
+    let parsed;
+    try {
+      parsed = require("dotenv").parse(
+        fs.readFileSync(path.join(app.getPath("userData"), ".env"), "utf8")
+      );
+    } catch {
+      return false;
+    }
+    return SECRET_KEYS.some((name) => parsed[name]) && this._encryptionAvailable();
   }
 
   _getMigrationSentinelPath() {
