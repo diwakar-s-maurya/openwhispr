@@ -92,6 +92,8 @@ The app then never loads `electron-updater`, never checks for updates and shows 
 
 Inside a Flatpak, OpenWhispr pastes through one XDG RemoteDesktop portal session with the Clipboard portal attached (`resources/linux-portal-input.c`, built by `npm run compile:linux-portal-input`, needs `libglib2.0-dev`). The desktop asks for permission once; the session then lasts for the life of the app. The session owns the clipboard, so this works where a compositor ignores clipboard writes from an unfocused window, and the app never reads your clipboard: the transcript stays on it after the paste.
 
+Inside a Flatpak without keyring access, API keys are encrypted with a key derived from the app's own Secret portal secret (`linux-portal-input --secret`), so the sandbox never needs the whole Secret Service.
+
 Outside a Flatpak, set `OPENWHISPR_PASTE_BACKEND=portal-input` to use it. It presses Shift+Insert by default; `OPENWHISPR_PORTAL_PASTE_KEYS=ctrl-v` or `ctrl-shift-v` changes that.
 
 ## Documentation

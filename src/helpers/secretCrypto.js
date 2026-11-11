@@ -3,6 +3,7 @@ const fs = require("fs");
 const path = require("path");
 const { app, safeStorage } = require("electron");
 const debugLogger = require("./debugLogger");
+const portalSecret = require("./portalSecret");
 
 const SERVICE = "OpenWhispr";
 const ACCOUNT = "secrets-master-key";
@@ -47,6 +48,22 @@ function _loadMasterKeyBackup() {
   }
 }
 
+// Inside a Flatpak without Secret Service access (which would expose the whole
+// keyring), derive the master key from the app's own Secret portal secret;
+// safeStorage has no backend there either.
+const PORTAL_KEY_INFO = "openwhispr secrets master key v1";
+
+function _initPortalSecret() {
+  if (!portalSecret.shouldUsePortalSecret()) return false;
+  const secret = portalSecret.readPortalSecret();
+  if (!secret) return false;
+  masterKey = Buffer.from(
+    crypto.hkdfSync("sha256", secret, Buffer.alloc(0), PORTAL_KEY_INFO, KEY_LEN)
+  );
+  secret.fill(0);
+  return true;
+}
+
 function _initKeychain() {
   let Entry;
   try {
@@ -88,6 +105,12 @@ function _ensureInit() {
   if (mode) return;
   if (_initKeychain()) {
     mode = "keychain";
+    return;
+  }
+  // Inside a Flatpak without keyring access. Same AES-GCM master-key format.
+  if (_initPortalSecret()) {
+    mode = "keychain";
+    debugLogger.info("master key derived from the Secret portal", {}, "secretCrypto");
     return;
   }
   if (_loadMasterKeyBackup()) {
@@ -139,4 +162,9 @@ function decrypt(blob) {
   throw new Error("decryption failed: no backend available");
 }
 
-module.exports = { encrypt, decrypt, isAvailable };
+function _resetForTests() {
+  mode = null;
+  masterKey = null;
+}
+
+module.exports = { encrypt, decrypt, isAvailable, _resetForTests };
