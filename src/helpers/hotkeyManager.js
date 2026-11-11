@@ -4,6 +4,7 @@ const debugLogger = require("./debugLogger");
 const GnomeShortcutManager = require("./gnomeShortcut");
 const HyprlandShortcutManager = require("./hyprlandShortcut");
 const KDEShortcutManager = require("./kdeShortcut");
+const PortalShortcutManager = require("./portalShortcut");
 const { i18nMain } = require("./i18nMain");
 const { parseHotkeyList } = require("./hotkeyList");
 const { createHotkeyRepeatGate } = require("./hotkeyRepeatGate");
@@ -1034,21 +1035,30 @@ class HotkeyManager extends EventEmitter {
     return this.gnomeManager.registerKeybinding(gnomeHotkey);
   }
 
+  // Inside a Flatpak the GlobalShortcuts portal replaces KGlobalAccel.
+  // PortalShortcutManager has KDEShortcutManager's interface, so both run on the
+  // KDE code path below.
   async initializeKDEShortcuts(callback) {
-    if (process.platform !== "linux" || !KDEShortcutManager.isKDE()) {
+    const usePortal = PortalShortcutManager.shouldUse();
+    if (process.platform !== "linux" || (!usePortal && !KDEShortcutManager.isKDE())) {
       return false;
     }
 
     try {
-      this.kdeManager = new KDEShortcutManager();
+      this.kdeManager = usePortal ? new PortalShortcutManager() : new KDEShortcutManager();
+      const source = usePortal ? "portal" : "kde";
       this.kdeManager.onHotkeyEvent = (slotName, action) =>
-        this.logSlotHotkeyEvent("kde", action, slotName);
+        this.logSlotHotkeyEvent(source, action, slotName);
       const ok = await this.kdeManager.init();
       if (ok) {
         await this.kdeManager.removeRetiredAgentKeybinding();
         this.useKDE = true;
         this.hotkeyCallback = callback;
-        debugLogger.log("[HotkeyManager] KDE shortcuts initialized via KGlobalAccel D-Bus");
+        debugLogger.log(
+          usePortal
+            ? "[HotkeyManager] Shortcuts initialized via the GlobalShortcuts portal"
+            : "[HotkeyManager] KDE shortcuts initialized via KGlobalAccel D-Bus"
+        );
         return true;
       }
     } catch (err) {
@@ -1119,7 +1129,11 @@ class HotkeyManager extends EventEmitter {
     // Try GNOME native shortcuts on any GNOME session (X11 or Wayland).
     // On Wayland: required (globalShortcut/XGrabKey doesn't work globally).
     // On X11: provides conflict detection via gsettings, visible in GNOME Settings.
-    if (process.platform === "linux" && GnomeShortcutManager.isGnome()) {
+    if (
+      process.platform === "linux" &&
+      GnomeShortcutManager.isGnome() &&
+      !PortalShortcutManager.shouldUse()
+    ) {
       const gnomeOk = await this.initializeGnomeShortcuts(callback);
 
       if (gnomeOk) {
@@ -1164,7 +1178,8 @@ class HotkeyManager extends EventEmitter {
     if (
       process.platform === "linux" &&
       HyprlandShortcutManager.isWayland() &&
-      HyprlandShortcutManager.isHyprland()
+      HyprlandShortcutManager.isHyprland() &&
+      !PortalShortcutManager.shouldUse()
     ) {
       const hyprlandOk = await this.initializeHyprlandShortcuts(callback);
 
@@ -1215,7 +1230,10 @@ class HotkeyManager extends EventEmitter {
     // Falls through to KDE or globalShortcut below when GNOME/Hyprland/KDE are not applicable
 
     // Try KDE native shortcuts on any KDE session (X11 or Wayland)
-    if (process.platform === "linux" && KDEShortcutManager.isKDE()) {
+    if (
+      process.platform === "linux" &&
+      (KDEShortcutManager.isKDE() || PortalShortcutManager.shouldUse())
+    ) {
       const kdeOk = await this.initializeKDEShortcuts(callback);
 
       if (kdeOk) {
