@@ -36,6 +36,7 @@ function runStartup({ lockAvailable, hidden }) {
       XWAYLAND_FLAG: "--ozone-platform=x11",
       shouldForceXWayland: () => false,
     },
+    "./src/helpers/hardenedEgress": { setupHardenedEgress: () => false },
     "./src/helpers/hotkeyRepeatGate": { createHotkeyRepeatGate() {} },
     "./src/helpers/linuxGpuCompositing": { shouldDisableGpuCompositing: () => false },
     "./src/helpers/linuxUrlSchemeHandler": {
