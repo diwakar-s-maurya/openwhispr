@@ -1,5 +1,5 @@
 const { app, screen, BrowserWindow, dialog, ipcMain } = require("electron");
-const { isNativeWayland, withPlacementHint } = require("./waylandPlacementHint");
+const { isNativeWayland } = require("./xwayland");
 const debugLogger = require("./debugLogger");
 const tokenStore = require("./tokenStore");
 const accountScopeBinding = require("./accountScopeBinding");
@@ -1256,12 +1256,12 @@ class WindowManager {
     }
   }
 
+  // Under native Wayland the compositor places windows, not the app, so the
+  // title carries the panel position (e.g. "Voice Recorder [bottom-left]") for
+  // a compositor-side helper such as a KWin script to read.
   _getMainWindowTitle() {
-    return withPlacementHint(
-      i18nMain.t("window.voiceRecorderTitle"),
-      this._panelStartPosition,
-      this._waylandPlacementHint
-    );
+    const title = i18nMain.t("window.voiceRecorderTitle");
+    return this._waylandPlacementHint ? `${title} [${this._panelStartPosition}]` : title;
   }
 
   setHotkeyListeningMode(enabled) {

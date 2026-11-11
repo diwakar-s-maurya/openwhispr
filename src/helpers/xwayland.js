@@ -13,4 +13,10 @@ function shouldForceXWayland(argv) {
   );
 }
 
-module.exports = { OZONE_PLATFORM_PREFIX, XWAYLAND_FLAG, shouldForceXWayland };
+// True when the app was started on Wayland directly (--ozone-platform=wayland),
+// e.g. by a Flatpak launcher. Windows can't place themselves there.
+function isNativeWayland({ platform = process.platform, ozonePlatform = "" } = {}) {
+  return platform === "linux" && String(ozonePlatform).toLowerCase() === "wayland";
+}
+
+module.exports = { OZONE_PLATFORM_PREFIX, XWAYLAND_FLAG, isNativeWayland, shouldForceXWayland };
