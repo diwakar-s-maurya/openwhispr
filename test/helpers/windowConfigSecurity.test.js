@@ -24,8 +24,17 @@ for (const name of CONFIGS) {
   });
 }
 
-// A sandboxed preload can require only a few Electron modules; anything else
+// A sandboxed preload can require only these Electron modules; anything else
 // would break every window at startup.
+const SANDBOXED_PRELOAD_MODULES = new Set([
+  "contextBridge",
+  "ipcRenderer",
+  "webFrame",
+  "webUtils",
+  "crashReporter",
+  "nativeImage",
+]);
+
 test("the shared preload requires only what a sandboxed preload can", () => {
   const preload = fs.readFileSync(path.join(__dirname, "../../preload.js"), "utf8");
   const required = [...preload.matchAll(/require\(\s*["']([^"']+)["']\s*\)/g)].map((m) => m[1]);
@@ -36,16 +45,6 @@ test("the shared preload requires only what a sandboxed preload can", () => {
     .map((n) => n.trim())
     .filter(Boolean);
   for (const name of electronNames) {
-    assert.ok(
-      [
-        "contextBridge",
-        "ipcRenderer",
-        "webFrame",
-        "webUtils",
-        "crashReporter",
-        "nativeImage",
-      ].includes(name),
-      name
-    );
+    assert.ok(SANDBOXED_PRELOAD_MODULES.has(name), name);
   }
 });
