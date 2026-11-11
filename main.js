@@ -134,8 +134,9 @@ if (process.platform === "linux" && process.env.XDG_SESSION_TYPE === "wayland") 
 
 // Set desktop filename so Wayland compositors can match windows to the .desktop entry.
 // This allows XDG portals (e.g. PipeWire) to persist permissions across sessions.
+// Inside a Flatpak the entry is named after the app ID instead.
 if (process.platform === "linux") {
-  app.setDesktopName("open-whispr.desktop");
+  app.setDesktopName(require("./src/helpers/linuxDesktopName").getLinuxDesktopName());
 }
 
 // Group all windows under single taskbar entry on Windows
