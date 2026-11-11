@@ -254,9 +254,9 @@ const CONTROL_PANEL_CONFIG = {
     preload: path.join(__dirname, "..", "..", "preload.js"),
     nodeIntegration: false,
     contextIsolation: true,
-    // sandbox: false is required because the preload script bridges IPC
-    // between the renderer and main process.
-    sandbox: false,
+    // The preload only uses contextBridge, ipcRenderer and webUtils, which a
+    // sandboxed preload has, like the other windows that load it.
+    sandbox: true,
     // webSecurity: false disables same-origin policy. Required because in
     // production the renderer loads from a file:// origin but makes
     // cross-origin fetch calls to Better Auth, Gemini, OpenAI, and Groq APIs

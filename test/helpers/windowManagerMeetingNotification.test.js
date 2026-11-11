@@ -31,6 +31,9 @@ class FakeBrowserWindow extends EventEmitter {
     this.ignoreMouseEvents = [];
     this.webContents = Object.assign(new EventEmitter(), {
       send: (channel, payload) => this.messages.push({ channel, payload }),
+      setWindowOpenHandler: (handler) => {
+        this.windowOpenHandler = handler;
+      },
     });
     createdWindows.push(this);
   }
@@ -306,6 +309,25 @@ test("a detection suppressed while onboarding is active is released", async () =
     false
   );
   assert.deepEqual(closedDetections, [["audio:sustained-audio", { flushQueued: false }]]);
+});
+
+test("the notification window opens no windows and doesn't navigate away", async () => {
+  const manager = createNormalWindowManager();
+  const opened = [];
+  manager.openExternalUrl = (url) => opened.push(url);
+  void manager.showMeetingNotification({ detectionId: "audio:sustained-audio", source: "audio" });
+  const win = createdWindows[0];
+
+  assert.deepEqual(win.windowOpenHandler({ url: "file:///etc/passwd" }), {
+    action: "deny",
+  });
+  assert.deepEqual(win.windowOpenHandler({ url: "https://example.com/" }), {
+    action: "deny",
+  });
+  assert.deepEqual(opened, ["https://example.com/"]);
+
+  // The navigation rules themselves are covered in windowManagerNavigation.test.js.
+  assert.equal(win.webContents.listenerCount("will-navigate"), 1);
 });
 
 test("a card the onboarding gate hides mid-load does not replay the queue into the gate", async () => {
