@@ -51,6 +51,7 @@ function fixture(
     },
     "./hyprlandShortcut": Hyprland,
     "./kdeShortcut": { isKDE: () => backend === "KDE" },
+    "./portalShortcut": { shouldUse: () => Boolean(context.process.env.FLATPAK_ID) },
     "./i18nMain": { i18nMain: { t: (key) => key } },
     "./hotkeyList": require("../../src/helpers/hotkeyList"),
     "./hotkeyRepeatGate": require("../../src/helpers/hotkeyRepeatGate"),
@@ -111,6 +112,24 @@ function fixture(
     window: { isDestroyed: () => false, webContents },
   };
 }
+
+test("inside a Flatpak, GNOME and Hyprland sessions use the portal on the native path", async () => {
+  for (const backend of ["GNOME", "Hyprland"]) {
+    const f = fixture(backend, "Control+Super+Space");
+    f.env.FLATPAK_ID = "org.example.OpenWhispr";
+    let gnomeTried = false;
+    f.manager.initializeGnomeShortcuts = async () => {
+      gnomeTried = true;
+      return true;
+    };
+    await f.manager.initializeHotkey(f.window, () => {});
+    f.timers.shift().callback();
+    await f.manager.registrationReady;
+    assert.equal(gnomeTried, false, backend);
+    assert.equal(f.manager.useKDE, true, backend);
+    assert.deepEqual(f.registrations, [{ hotkey: "Control+Super+Space", push: false }], backend);
+  }
+});
 
 // Runs main.js's startup Hold check, the code between createMainWindow() and the
 // backend's delayed registration, against the given window manager.
