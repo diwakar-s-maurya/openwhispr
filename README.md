@@ -88,6 +88,12 @@ npx electron-builder --linux -c.extraMetadata.openwhisprBuild.updater=false -c.p
 
 The app then never loads `electron-updater`, never checks for updates and shows updates as managed by the system.
 
+### Pasting through the desktop portal (Linux)
+
+Inside a Flatpak, OpenWhispr pastes through one XDG RemoteDesktop portal session with the Clipboard portal attached (`resources/linux-portal-input.c`, built by `npm run compile:linux-portal-input`, needs `libglib2.0-dev`). The desktop asks for permission once; the session then lasts for the life of the app. The session owns the clipboard, so this works where a compositor ignores clipboard writes from an unfocused window, and the app never reads your clipboard: the transcript stays on it after the paste.
+
+Outside a Flatpak, set `OPENWHISPR_PASTE_BACKEND=portal-input` to use it. It presses Shift+Insert by default; `OPENWHISPR_PORTAL_PASTE_KEYS=ctrl-v` or `ctrl-shift-v` changes that.
+
 ## Documentation
 
 Visit **[docs.openwhispr.com](https://docs.openwhispr.com)** for:
