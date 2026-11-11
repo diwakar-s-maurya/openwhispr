@@ -2,8 +2,9 @@
 // engines (whisper.cpp, llama-server, sherpa-onnx, Qdrant), their models,
 // onnxruntime-node or FFmpeg. Transcription and reasoning then run only through
 // cloud providers. The local-model code stays in the app, but there is nothing
-// for it to run, and the packaged package.json carries
-// `openwhisprBuild.cloudOnly: true` so the app can tell which build it is.
+// for it to run. The packaged package.json carries
+// `openwhisprBuild.cloudOnly: true`, which scripts/afterPack.js reads to skip
+// its checks for the left-out binaries.
 //
 // Useful for distro packages, sandboxed (e.g. Flatpak) builds and audited
 // deployments that want a smaller binary surface.
