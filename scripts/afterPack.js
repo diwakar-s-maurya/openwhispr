@@ -11,7 +11,9 @@
 //    --no-sandbox where the Chromium sandbox cannot work (AppImage/tar.gz
 //    on distros that restrict unprivileged user namespaces).
 // 3. Fails the build if required binaries (ffmpeg-static, ps-list vendor exe,
-//    onnx worker script) are missing from app.asar.unpacked/.
+//    onnx worker script) are missing from app.asar.unpacked/. Cloud-only builds
+//    (electron-builder.cloud-only.cjs) leave out FFmpeg and ONNX Runtime on
+//    purpose, so those two checks are skipped there.
 
 const fs = require("fs");
 const path = require("path");
@@ -270,6 +272,11 @@ function verifyWindowsKeyListener(binDir) {
   }
 }
 
+// Set by electron-builder.cloud-only.cjs through extraMetadata.
+function isCloudOnlyBuild(context) {
+  return context.packager?.config?.extraMetadata?.openwhisprBuild?.cloudOnly === true;
+}
+
 function verifyUnpackedBinaries(context) {
   const unpackedDir = path.join(resolveResourcesDir(context), "app.asar.unpacked");
   const unpackedModulesDir = path.join(unpackedDir, "node_modules");
@@ -281,14 +288,15 @@ function verifyUnpackedBinaries(context) {
     "ffmpeg-static",
     isWindows ? "ffmpeg.exe" : "ffmpeg"
   );
-  if (!fs.existsSync(ffmpegPath)) {
+  const cloudOnly = isCloudOnlyBuild(context);
+  if (!cloudOnly && !fs.existsSync(ffmpegPath)) {
     throw new Error(
       `afterPack: missing ${ffmpegPath} — ffmpeg-static was not unpacked from app.asar (asarUnpack/packaging failure); the packed app cannot spawn FFmpeg`
     );
   }
 
   const onnxWorkerPath = path.join(unpackedDir, "src", "workers", "onnxWorker.js");
-  if (!fs.existsSync(onnxWorkerPath)) {
+  if (!cloudOnly && !fs.existsSync(onnxWorkerPath)) {
     throw new Error(
       `afterPack: missing ${onnxWorkerPath} — src/workers was not unpacked from app.asar (asarUnpack/packaging failure); the ONNX utility process would crash-loop in the packed app`
     );
@@ -331,3 +339,4 @@ exports.default = async function (context) {
 
 exports.verifyWindowsOnnxRuntimePrivatized = verifyWindowsOnnxRuntimePrivatized;
 exports.verifyWindowsKeyListener = verifyWindowsKeyListener;
+exports.isCloudOnlyBuild = isCloudOnlyBuild;

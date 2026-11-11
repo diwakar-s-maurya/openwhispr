@@ -74,6 +74,10 @@ Requires Node.js 24+. See the [full documentation](https://docs.openwhispr.com/q
 
 The commands above run the desktop application, which remains at the repository root. The Expo mobile application lives in [`openwhispr-mobile`](openwhispr-mobile/) with its own dependencies, lockfile, build configuration, and release process. See the [mobile README](openwhispr-mobile/README.md) for its setup instructions.
 
+### Cloud-only Linux build
+
+`npm run build:linux:cloud-only` packages the app without the bundled local engines (whisper.cpp, llama-server, sherpa-onnx, Qdrant), their models, ONNX Runtime or FFmpeg, and downloads none of them. Transcription and reasoning then use cloud providers only. This suits distro packages, sandboxed builds and audited deployments; see [`electron-builder.cloud-only.cjs`](electron-builder.cloud-only.cjs).
+
 ## Documentation
 
 Visit **[docs.openwhispr.com](https://docs.openwhispr.com)** for:
