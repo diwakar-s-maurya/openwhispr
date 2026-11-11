@@ -1,4 +1,5 @@
 const { app, screen, BrowserWindow, dialog, ipcMain } = require("electron");
+const { isNativeWayland, withPlacementHint } = require("./waylandPlacementHint");
 const debugLogger = require("./debugLogger");
 const tokenStore = require("./tokenStore");
 const accountScopeBinding = require("./accountScopeBinding");
@@ -120,6 +121,9 @@ class WindowManager {
     this._cachedActivationMode = "tap";
     this._floatingIconAutoHide = false;
     this._panelStartPosition = "bottom-right";
+    this._waylandPlacementHint = isNativeWayland({
+      ozonePlatform: app?.commandLine?.getSwitchValue?.("ozone-platform"),
+    });
     this._activeHorizontalDirection = null;
     this._isDictatingToggle = false;
     this._dictationLifecycleState = DICTATION_LIFECYCLE.IDLE;
@@ -196,7 +200,7 @@ class WindowManager {
       // after it renders the normal app; fresh onboarding keeps it active.
       this.setOnboardingActive(true);
       this.endOnboardingDemo();
-      this.mainWindow.setTitle(i18nMain.t("window.voiceRecorderTitle"));
+      this.mainWindow.setTitle(this._getMainWindowTitle());
       this.enforceMainWindowOnTop();
       this._notifyMainWindowHorizontalDirection();
     });
@@ -1246,8 +1250,18 @@ class WindowManager {
       );
       this._clearRendererResizeMask();
       this.mainWindow.setBounds(newPos);
+      // Native Wayland ignores the position above; the title tells the compositor.
+      if (this._waylandPlacementHint) this.mainWindow.setTitle(this._getMainWindowTitle());
       this._notifyMainWindowHorizontalDirection();
     }
+  }
+
+  _getMainWindowTitle() {
+    return withPlacementHint(
+      i18nMain.t("window.voiceRecorderTitle"),
+      this._panelStartPosition,
+      this._waylandPlacementHint
+    );
   }
 
   setHotkeyListeningMode(enabled) {
@@ -2416,7 +2430,7 @@ class WindowManager {
     }
 
     if (this.mainWindow && !this.mainWindow.isDestroyed()) {
-      this.mainWindow.setTitle(i18nMain.t("window.voiceRecorderTitle"));
+      this.mainWindow.setTitle(this._getMainWindowTitle());
     }
   }
 
