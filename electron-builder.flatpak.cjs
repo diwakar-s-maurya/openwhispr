@@ -20,7 +20,10 @@ module.exports = {
   ...cloudOnly,
   publish: null,
   files: [...cloudOnly.files, "!**/node_modules/electron-updater/**"],
-  extraResources: cloudOnly.extraResources.filter((r) => r !== ".env").map(flatpakResource),
+  extraResources: cloudOnly.extraResources
+    // No bundled .env, and no macOS MediaRemote helper.
+    .filter((r) => r !== ".env" && !(typeof r === "object" && /mediaremote/.test(r.from)))
+    .map(flatpakResource),
   linux: { ...cloudOnly.linux, target: ["dir"] },
   extraMetadata: {
     ...cloudOnly.extraMetadata,
