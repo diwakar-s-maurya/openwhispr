@@ -29,10 +29,15 @@ class PortalShortcutManager {
   constructor({ portal = new GnomeGlobalShortcutsPortal() } = {}) {
     this.portal = portal;
     this.slots = new Map(); // slotName -> { trigger, callback }
-    this.registeredSlots = new Set();
     this.assignedTriggers = new Map(); // slotName -> what the desktop actually bound
     this.onHotkeyEvent = null;
-    this.pending = Promise.resolve();
+    this.pending = Promise.resolve(); // the last rebind, running or queued
+    this.queued = null; // a rebind waiting to start, shared by later callers
+  }
+
+  // HotkeyManager reads this, like KDEShortcutManager's field.
+  get registeredSlots() {
+    return new Set(this.assignedTriggers.keys());
   }
 
   async init() {
@@ -82,18 +87,21 @@ class PortalShortcutManager {
 
   close() {
     this.slots.clear();
-    this.registeredSlots.clear();
     this.assignedTriggers.clear();
     this.portal.close().catch(() => {});
   }
 
   // The portal binds a whole set of shortcuts per session, so every change
-  // rebinds all slots in a fresh session. Calls are serialised.
+  // rebinds all slots in a fresh session. Runs are serialised, and changes made
+  // while one is queued share it: startup registers several slots in a row, and a
+  // hotkey change unregisters then registers, each of which would otherwise open
+  // (and may prompt for) a session of its own.
   _rebind() {
+    if (this.queued) return this.queued;
     const run = async () => {
+      this.queued = null;
       if (this.slots.size === 0) {
         await this.portal.unregisterKeybinding();
-        this.registeredSlots.clear();
         this.assignedTriggers.clear();
         return true;
       }
@@ -106,18 +114,17 @@ class PortalShortcutManager {
         const bound = await this.portal.bindShortcuts(shortcuts, (slotName, phase) =>
           this._dispatch(slotName, phase)
         );
-        this.registeredSlots = new Set(this.slots.keys());
         this.assignedTriggers = bound;
         return true;
       } catch (err) {
         debugLogger.log("[PortalShortcut] Binding failed:", err.message);
-        this.registeredSlots.clear();
         this.assignedTriggers.clear();
         return false;
       }
     };
-    this.pending = this.pending.then(run, run);
-    return this.pending;
+    this.queued = this.pending.then(run, run);
+    this.pending = this.queued;
+    return this.queued;
   }
 
   // Same delivery as KDEShortcutManager: every slot gets "down"; only dictation

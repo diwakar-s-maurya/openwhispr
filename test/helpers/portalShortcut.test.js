@@ -150,3 +150,21 @@ test("close drops every slot and closes the portal", async () => {
   assert.equal(portal.closed, true);
   assert.equal(manager.registeredSlots.size, 0);
 });
+
+test("changes made while a rebind is queued share one portal session", async () => {
+  const portal = fakePortal();
+  const manager = new PortalShortcutManager({ portal });
+
+  const results = await Promise.all([
+    manager.registerKeybinding("Control+Super+Space", "dictation", () => {}),
+    manager.registerKeybinding("Escape", "cancel", () => {}),
+  ]);
+
+  assert.deepEqual(results, [true, true]);
+  assert.equal(portal.binds.length, 1);
+  assert.deepEqual(
+    portal.binds[0].map((s) => s.id),
+    ["dictation", "cancel"]
+  );
+  assert.deepEqual([...manager.registeredSlots], ["dictation", "cancel"]);
+});
