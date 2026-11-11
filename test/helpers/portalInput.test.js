@@ -142,6 +142,26 @@ test("a refused permission isn't asked again until restart", async (t) => {
   assert.equal(helper.spawns.length, 1);
 });
 
+test("an unanswered permission dialog isn't taken as a refusal", async (t) => {
+  const helper = fakeHelper({ greet: [] });
+  const session = new PortalInputSession({
+    binaryPath: "/bin/helper",
+    tokenPath: tempTokenPath(t),
+    spawnImpl: helper.spawnImpl,
+    logger: quietLogger,
+  });
+  const first = session.paste("x");
+  setImmediate(() => helper.spawns[0].child.exit(5));
+  await assert.rejects(first, { code: "timeout" });
+  assert.equal(session.denied, false);
+
+  const second = session.paste("y");
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(helper.spawns.length, 2);
+  helper.spawns[1].child.stdout.write("READY clipboard=1\n");
+  await second;
+});
+
 test("a session the desktop ends is reopened on the next paste", async (t) => {
   const helper = fakeHelper();
   const session = new PortalInputSession({
