@@ -1,7 +1,11 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 
-const { XWAYLAND_FLAG, shouldForceXWayland } = require("../../src/helpers/xwayland.js");
+const {
+  XWAYLAND_FLAG,
+  isNativeWayland,
+  shouldForceXWayland,
+} = require("../../src/helpers/xwayland.js");
 
 function setEnv(key, value) {
   if (value === undefined) delete process.env[key];
@@ -50,4 +54,11 @@ test("an explicit --ozone-platform flag wins", () => {
     assert.equal(shouldForceXWayland(["--ozone-platform=wayland"]), false);
     assert.equal(shouldForceXWayland([XWAYLAND_FLAG]), false);
   });
+});
+
+test("isNativeWayland is true only on Linux started with the wayland ozone platform", () => {
+  assert.equal(isNativeWayland({ platform: "linux", ozonePlatform: "wayland" }), true);
+  assert.equal(isNativeWayland({ platform: "linux", ozonePlatform: "x11" }), false);
+  assert.equal(isNativeWayland({ platform: "linux", ozonePlatform: "" }), false);
+  assert.equal(isNativeWayland({ platform: "darwin", ozonePlatform: "wayland" }), false);
 });
