@@ -23,8 +23,8 @@
  *                                     clipboard-unavailable, keyboard, selection, usage
  *   CLOSED                            the portal or the user ended the session
  *
- * Exit codes: 0 normal, 1 no session bus, 2 CreateSession failed,
- *             3 SelectDevices denied/failed, 4 Start denied/failed.
+ * Exit codes: 0 normal, 1 no session bus, 2 the portal refused or failed,
+ *             3 the user denied the request, 5 nobody answered the dialog in time.
  *
  * The restore token from an earlier run comes in PORTAL_INPUT_RESTORE_TOKEN
  * (or --restore-token TOKEN; argv is world-readable in /proc, the environment
@@ -60,6 +60,9 @@ static GMainLoop *loop;
 static char *session_handle;
 static GBytes *offered; /* text currently offered as the selection */
 static gboolean clipboard_enabled;
+/* Response code of the last Request (0 ok, 1 cancelled by the user, 2 other,
+ * 99 our own timeout). */
+static guint32 last_response;
 
 static void reply(const char *fmt, ...) G_GNUC_PRINTF(1, 2);
 static void reply(const char *fmt, ...)
@@ -138,11 +141,19 @@ static GVariant *request(const char *method, GVariant *params, const char *tok, 
             if (r.results) g_variant_unref(r.results);
         }
     }
+    last_response = ret ? r.code : 2;
     g_dbus_connection_signal_unsubscribe(conn, sub);
     g_main_loop_unref(r.loop);
     g_free(req_path);
     g_free(sp);
     return out;
+}
+
+static int exit_code(void)
+{
+    if (last_response == 1) return 3;
+    if (last_response == 99) return 5;
+    return 2;
 }
 
 /* ---- keyboard ---- */
@@ -342,7 +353,7 @@ int main(int argc, char **argv)
     g_free(session_tok);
     if (!res) {
         fprintf(stderr, "%s\n", err->message);
-        return 2;
+        return exit_code();
     }
     g_variant_lookup(res, "session_handle", "s", &session_handle);
     g_variant_unref(res);
@@ -359,7 +370,7 @@ int main(int argc, char **argv)
     g_free(tok);
     if (!res) {
         fprintf(stderr, "%s\n", err->message);
-        return 3;
+        return exit_code();
     }
     g_variant_unref(res);
 
@@ -382,7 +393,7 @@ int main(int argc, char **argv)
     g_free(tok);
     if (!res) {
         fprintf(stderr, "%s\n", err->message);
-        return 4;
+        return exit_code();
     }
     char *new_restore = NULL;
     if (g_variant_lookup(res, "restore_token", "s", &new_restore) && new_restore) {

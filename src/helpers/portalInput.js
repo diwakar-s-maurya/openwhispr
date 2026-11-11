@@ -22,7 +22,8 @@ const FIRST_START_TIMEOUT_MS = 125000;
 const RESTORED_START_TIMEOUT_MS = 10000;
 const COMMAND_TIMEOUT_MS = 5000;
 // Helper exit codes (see linux-portal-input.c).
-const EXIT_REASONS = { 1: "no-session-bus", 2: "unavailable", 3: "denied", 4: "denied" };
+// Only "denied" stops further prompts; after a timeout the next paste asks again.
+const EXIT_REASONS = { 1: "no-session-bus", 2: "unavailable", 3: "denied", 5: "timeout" };
 
 function portalInputError(code, message = code) {
   return Object.assign(new Error(message), { code });
