@@ -6,7 +6,7 @@ const path = require("path");
 const fs = require("fs");
 const os = require("os");
 const debugLogger = require("./debugLogger");
-const { PortalInputSession } = require("./portalInput");
+const { PortalInputSession, PASTE_KEYS } = require("./portalInput");
 const { getLinuxSessionInfo } = require("./linuxSession");
 const { getCosmicActiveAppId } = require("./cosmicToplevel");
 
@@ -512,7 +512,7 @@ class ClipboardManager {
   // focused window's class isn't visible from a sandbox to pick per app.
   _portalPasteKeys() {
     const keys = process.env.OPENWHISPR_PORTAL_PASTE_KEYS;
-    return keys === "ctrl-v" || keys === "ctrl-shift-v" ? keys : "shift-insert";
+    return PASTE_KEYS.has(keys) ? keys : "shift-insert";
   }
 
   // The portal session owns the selection, so the app neither reads nor restores
@@ -521,17 +521,22 @@ class ClipboardManager {
   // regular path.
   async _pasteViaPortalInput(portalInput, text) {
     const keys = this._portalPasteKeys();
+    let sessionUp = false;
     try {
+      await portalInput.start();
+      sessionUp = true;
+      if (!portalInput.clipboardEnabled) return null;
       await portalInput.paste(text, keys);
       return { method: `portal-input:${keys}`, restoreComplete: Promise.resolve() };
     } catch (error) {
-      if (error.code === "clipboard-unavailable") return null;
       debugLogger.warn(
         "Portal paste failed, leaving the text on the clipboard",
         { code: error.code, error: error.message },
         "clipboard"
       );
       try {
+        // A session that never started would only fail again.
+        if (!sessionUp) throw error;
         await portalInput.copy(text);
       } catch {
         clipboard.writeText(text);
@@ -1105,7 +1110,7 @@ class ClipboardManager {
     const allowClipboardFallback = options.allowClipboardFallback === true;
 
     try {
-      const portalInput = platform === "linux" ? this._getPortalInput() : null;
+      const portalInput = this._getPortalInput();
       if (portalInput) {
         const portalResult = await this._pasteViaPortalInput(portalInput, text);
         if (portalResult) {
@@ -2646,7 +2651,7 @@ Would you like to open System Settings now?`;
   // `xwaylandOnly`: where wl-copy is required (#2621), a write it didn't make reaches
   // native Wayland apps only while an OpenWhispr window has focus.
   async writeClipboard(text, webContents = null) {
-    const portalInput = process.platform === "linux" ? this._getPortalInput() : null;
+    const portalInput = this._getPortalInput();
     if (portalInput) {
       try {
         await portalInput.copy(text);

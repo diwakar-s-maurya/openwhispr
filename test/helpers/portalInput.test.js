@@ -50,9 +50,18 @@ function tempTokenPath(t) {
   return path.join(dir, "cache", "portal-input-token");
 }
 
+// The text is the last field of a PASTE or COPY line.
 function decode(line) {
-  const [, , b64] = line.split(" ");
-  return Buffer.from(b64 ?? line.split(" ")[1], "base64").toString("utf8");
+  return Buffer.from(line.split(" ").at(-1), "base64").toString("utf8");
+}
+
+function makeSession(t, helper, tokenPath = tempTokenPath(t)) {
+  return new PortalInputSession({
+    binaryPath: "/bin/helper",
+    tokenPath,
+    spawnImpl: helper.spawnImpl,
+    logger: quietLogger,
+  });
 }
 
 test("shouldUse: inside a Flatpak or when opted in, on Linux only", () => {
@@ -67,12 +76,7 @@ test("shouldUse: inside a Flatpak or when opted in, on Linux only", () => {
 
 test("one helper serves every paste, and the text travels base64-encoded", async (t) => {
   const helper = fakeHelper();
-  const session = new PortalInputSession({
-    binaryPath: "/bin/helper",
-    tokenPath: tempTokenPath(t),
-    spawnImpl: helper.spawnImpl,
-    logger: quietLogger,
-  });
+  const session = makeSession(t, helper);
 
   await session.paste("héllo world\nline two");
   await session.paste("again", "ctrl-v");
@@ -85,19 +89,14 @@ test("one helper serves every paste, and the text travels base64-encoded", async
     ["PASTE shift-insert", "PASTE ctrl-v", "COPY"]
   );
   assert.equal(decode(lines[0]), "héllo world\nline two");
-  assert.equal(Buffer.from(lines[2].split(" ")[1], "base64").toString(), "copied");
+  assert.equal(decode(lines[2]), "copied");
   assert.equal(session.clipboardEnabled, true);
 });
 
 test("the restore token goes in through the environment and is saved owner-only", async (t) => {
   const tokenPath = tempTokenPath(t);
   const helper = fakeHelper({ greet: ["TOKEN fresh-token", "READY clipboard=1"] });
-  const session = new PortalInputSession({
-    binaryPath: "/bin/helper",
-    tokenPath,
-    spawnImpl: helper.spawnImpl,
-    logger: quietLogger,
-  });
+  const session = makeSession(t, helper, tokenPath);
   await session.start();
   assert.equal(fs.readFileSync(tokenPath, "utf8"), "fresh-token");
   assert.equal(fs.statSync(tokenPath).mode & 0o777, 0o600);
@@ -105,12 +104,7 @@ test("the restore token goes in through the environment and is saved owner-only"
 
   session.close();
   const again = fakeHelper();
-  const second = new PortalInputSession({
-    binaryPath: "/bin/helper",
-    tokenPath,
-    spawnImpl: again.spawnImpl,
-    logger: quietLogger,
-  });
+  const second = makeSession(t, again, tokenPath);
   await second.start();
   assert.deepEqual(again.spawns[0].args, []);
   assert.equal(again.spawns[0].options.env.PORTAL_INPUT_RESTORE_TOKEN, "fresh-token");
@@ -118,23 +112,13 @@ test("the restore token goes in through the environment and is saved owner-only"
 
 test("an ERR reply rejects with its reason as the code", async (t) => {
   const helper = fakeHelper({ respond: () => "ERR clipboard-unavailable" });
-  const session = new PortalInputSession({
-    binaryPath: "/bin/helper",
-    tokenPath: tempTokenPath(t),
-    spawnImpl: helper.spawnImpl,
-    logger: quietLogger,
-  });
+  const session = makeSession(t, helper);
   await assert.rejects(session.paste("x"), { code: "clipboard-unavailable" });
 });
 
 test("a refused permission isn't asked again until restart", async (t) => {
   const helper = fakeHelper({ greet: [] });
-  const session = new PortalInputSession({
-    binaryPath: "/bin/helper",
-    tokenPath: tempTokenPath(t),
-    spawnImpl: helper.spawnImpl,
-    logger: quietLogger,
-  });
+  const session = makeSession(t, helper);
   const first = session.paste("x");
   setImmediate(() => helper.spawns[0].child.exit(3));
   await assert.rejects(first, { code: "denied" });
@@ -144,12 +128,7 @@ test("a refused permission isn't asked again until restart", async (t) => {
 
 test("an unanswered permission dialog isn't taken as a refusal", async (t) => {
   const helper = fakeHelper({ greet: [] });
-  const session = new PortalInputSession({
-    binaryPath: "/bin/helper",
-    tokenPath: tempTokenPath(t),
-    spawnImpl: helper.spawnImpl,
-    logger: quietLogger,
-  });
+  const session = makeSession(t, helper);
   const first = session.paste("x");
   setImmediate(() => helper.spawns[0].child.exit(5));
   await assert.rejects(first, { code: "timeout" });
@@ -164,12 +143,7 @@ test("an unanswered permission dialog isn't taken as a refusal", async (t) => {
 
 test("a session the desktop ends is reopened on the next paste", async (t) => {
   const helper = fakeHelper();
-  const session = new PortalInputSession({
-    binaryPath: "/bin/helper",
-    tokenPath: tempTokenPath(t),
-    spawnImpl: helper.spawnImpl,
-    logger: quietLogger,
-  });
+  const session = makeSession(t, helper);
   await session.paste("one");
   helper.spawns[0].child.stdout.write("CLOSED\n");
   helper.spawns[0].child.exit(0);
@@ -181,12 +155,7 @@ test("a session the desktop ends is reopened on the next paste", async (t) => {
 test("a helper that stops answering is killed so replies can't get out of step", async (t) => {
   t.mock.timers.enable({ apis: ["setTimeout"] });
   const helper = fakeHelper({ respond: () => null });
-  const session = new PortalInputSession({
-    binaryPath: "/bin/helper",
-    tokenPath: tempTokenPath(t),
-    spawnImpl: helper.spawnImpl,
-    logger: quietLogger,
-  });
+  const session = makeSession(t, helper);
   await session.start();
   const pending = session.paste("x");
   await new Promise((resolve) => setImmediate(resolve));
@@ -231,10 +200,11 @@ function strictClipboard() {
   };
 }
 
-function fakeSession({ pasteError, copyError } = {}) {
+function fakeSession({ pasteError, copyError, startError, clipboardEnabled = true } = {}) {
   const calls = [];
   return {
     calls,
+    clipboardEnabled,
     async paste(text, keys) {
       calls.push(["paste", text, keys]);
       if (pasteError) throw pasteError;
@@ -243,7 +213,9 @@ function fakeSession({ pasteError, copyError } = {}) {
       calls.push(["copy", text]);
       if (copyError) throw copyError;
     },
-    start: async () => ({ clipboard: true }),
+    async start() {
+      if (startError) throw startError;
+    },
   };
 }
 
@@ -315,10 +287,23 @@ test("without the Clipboard portal, the paste takes the regular path", async (t)
   onLinux(t);
   const ClipboardManager = loadClipboardManager(strictClipboard());
   const manager = new ClipboardManager();
-  manager.portalInput = fakeSession({
-    pasteError: Object.assign(new Error("no"), { code: "clipboard-unavailable" }),
-  });
+  manager.portalInput = fakeSession({ clipboardEnabled: false });
   assert.equal(await manager._pasteViaPortalInput(manager.portalInput, "x"), null);
+  assert.deepEqual(manager.portalInput.calls, []);
+});
+
+test("a session that couldn't start isn't started again just to copy", async (t) => {
+  onLinux(t);
+  const fakeClipboard = strictClipboard();
+  const ClipboardManager = loadClipboardManager(fakeClipboard);
+  const manager = new ClipboardManager();
+  const denied = Object.assign(new Error("denied"), { code: "denied" });
+  manager.portalInput = fakeSession({ startError: denied });
+
+  const result = await manager.pasteText("dictated text");
+  assert.equal(result.reason, "portal-input-denied");
+  assert.deepEqual(manager.portalInput.calls, []);
+  assert.deepEqual(fakeClipboard.writes, [["dictated text", undefined]]);
 });
 
 test("copy-to-clipboard goes through the portal session", async (t) => {
