@@ -5,23 +5,12 @@
 // should be: access to it is access to every secret in it. The portal instead
 // gives each app ID one random secret, kept in the keyring on the app's behalf.
 // secretCrypto derives its master key from it.
-const fs = require("fs");
-const path = require("path");
 const { spawnSync } = require("child_process");
+const { resolveBundledBinary } = require("./binaryResolver");
 const debugLogger = require("./debugLogger");
 
 // Long enough for the keyring's unlock prompt, if the wallet is locked.
 const SECRET_TIMEOUT_MS = 60000;
-
-function resolvePortalInputBinary({ resourcesPath = process.resourcesPath } = {}) {
-  const candidates = [
-    path.join(__dirname, "..", "..", "resources", "bin", "linux-portal-input"),
-    resourcesPath && path.join(resourcesPath, "bin", "linux-portal-input"),
-    resourcesPath &&
-      path.join(resourcesPath, "app.asar.unpacked", "resources", "bin", "linux-portal-input"),
-  ].filter(Boolean);
-  return candidates.find((candidate) => fs.existsSync(candidate)) || null;
-}
 
 function shouldUsePortalSecret(env = process.env, platform = process.platform) {
   return platform === "linux" && Boolean(env.FLATPAK_ID);
@@ -29,7 +18,7 @@ function shouldUsePortalSecret(env = process.env, platform = process.platform) {
 
 // Returns the secret as a Buffer, or null when the portal can't provide one.
 function readPortalSecret({
-  binaryPath = resolvePortalInputBinary(),
+  binaryPath = resolveBundledBinary("linux-portal-input", "secretCrypto"),
   spawnSyncImpl = spawnSync,
   logger = debugLogger,
 } = {}) {
@@ -59,4 +48,4 @@ function readPortalSecret({
   return secret;
 }
 
-module.exports = { readPortalSecret, resolvePortalInputBinary, shouldUsePortalSecret };
+module.exports = { readPortalSecret, shouldUsePortalSecret };

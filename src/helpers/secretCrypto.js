@@ -162,9 +162,4 @@ function decrypt(blob) {
   throw new Error("decryption failed: no backend available");
 }
 
-function _resetForTests() {
-  mode = null;
-  masterKey = null;
-}
-
-module.exports = { encrypt, decrypt, isAvailable, _resetForTests };
+module.exports = { encrypt, decrypt, isAvailable };
