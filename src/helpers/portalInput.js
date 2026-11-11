@@ -107,7 +107,7 @@ class PortalInputSession {
             },
             "clipboard"
           );
-          resolve({ clipboard: this.clipboardEnabled });
+          resolve();
         } else if (kind === "OK" || kind === "ERR") {
           const waiter = this.waiters.shift();
           if (!waiter) return;

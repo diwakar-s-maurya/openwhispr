@@ -26,21 +26,12 @@
  * Exit codes: 0 normal, 1 no session bus, 2 the portal refused or failed,
  *             3 the user denied the request, 5 nobody answered the dialog in time.
  *
- * --secret: print this app's secret from the Secret portal (base64, one line)
- * and exit. Inside a Flatpak the portal hands each app its own random secret,
- * kept in the desktop's keyring; the app derives its encryption key from it
- * without being able to read anything else in the keyring.
- *
  * The restore token from an earlier run comes in PORTAL_INPUT_RESTORE_TOKEN
- * (or --restore-token TOKEN; argv is world-readable in /proc, the environment
- * is not).
+ * (the environment, not argv, which is world-readable in /proc).
  */
-#define _GNU_SOURCE /* pipe2 */
 #include <gio/gio.h>
 #include <gio/gunixfdlist.h>
 #include <errno.h>
-#include <fcntl.h>
-#include <poll.h>
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
@@ -51,7 +42,6 @@
 #define CB_IFACE "org.freedesktop.portal.Clipboard"
 #define REQ_IFACE "org.freedesktop.portal.Request"
 #define SESS_IFACE "org.freedesktop.portal.Session"
-#define SECRET_IFACE "org.freedesktop.portal.Secret"
 #define CALL_TIMEOUT_MS 3000
 /* How long the user has to answer the first permission dialog. */
 #define RESPONSE_TIMEOUT_S 120
@@ -69,9 +59,6 @@ static GMainLoop *loop;
 static char *session_handle;
 static GBytes *offered; /* text currently offered as the selection */
 static gboolean clipboard_enabled;
-/* Response code of the last Request (0 ok, 1 cancelled by the user, 2 other,
- * 99 our own timeout). */
-static guint32 last_response;
 
 static void reply(const char *fmt, ...) G_GNUC_PRINTF(1, 2);
 static void reply(const char *fmt, ...)
@@ -99,6 +86,17 @@ static char *new_token(void)
 }
 
 /* ---- Calls that answer through a Request object's Response signal ---- */
+
+/* Starts the options dictionary of a request call with its handle_token, and
+ * returns the token for request(). */
+static char *request_options(GVariantBuilder *b)
+{
+    char *tok = new_token();
+    g_variant_builder_init(b, G_VARIANT_TYPE("a{sv}"));
+    g_variant_builder_add(b, "{sv}", "handle_token", g_variant_new_string(tok));
+    return tok;
+}
+
 typedef struct {
     GMainLoop *loop;
     guint32 code;
@@ -121,8 +119,17 @@ static gboolean on_response_timeout(gpointer data)
     return G_SOURCE_REMOVE;
 }
 
-/* `options` must already hold handle_token=tok. */
-static GVariant *request(const char *method, GVariant *params, const char *tok, GError **error)
+/* Exit status for a Response code: 1 the user said no, 99 nobody answered. */
+static int response_status(guint32 code)
+{
+    return code == 1 ? 3 : code == 99 ? 5 : 2;
+}
+
+/* Calls iface.method and waits for its Response. `tok` comes from
+ * request_options() and is freed here. On failure returns NULL, sets *error and
+ * *status (an exit code, see the top of this file). */
+static GVariant *request(const char *iface, const char *method, GVariant *params, char *tok,
+                         int *status, GError **error)
 {
     char *sp = sender_path();
     char *req_path = g_strdup_printf("/org/freedesktop/portal/desktop/request/%s/%s", sp, tok);
@@ -131,7 +138,7 @@ static GVariant *request(const char *method, GVariant *params, const char *tok, 
     guint sub = g_dbus_connection_signal_subscribe(conn, PORTAL_BUS, REQ_IFACE, "Response",
         req_path, NULL, G_DBUS_SIGNAL_FLAGS_NONE, on_response, &r, NULL);
 
-    GVariant *ret = g_dbus_connection_call_sync(conn, PORTAL_BUS, PORTAL_PATH, RD_IFACE, method,
+    GVariant *ret = g_dbus_connection_call_sync(conn, PORTAL_BUS, PORTAL_PATH, iface, method,
         params, NULL, G_DBUS_CALL_FLAGS_NONE, CALL_TIMEOUT_MS, NULL, error);
     GVariant *out = NULL;
     if (ret) {
@@ -150,19 +157,20 @@ static GVariant *request(const char *method, GVariant *params, const char *tok, 
             if (r.results) g_variant_unref(r.results);
         }
     }
-    last_response = ret ? r.code : 2;
+    *status = ret ? response_status(r.code) : 2;
     g_dbus_connection_signal_unsubscribe(conn, sub);
     g_main_loop_unref(r.loop);
     g_free(req_path);
     g_free(sp);
+    g_free(tok);
     return out;
 }
 
-static int exit_code(void)
+static int fail(GError *err, int status)
 {
-    if (last_response == 1) return 3;
-    if (last_response == 99) return 5;
-    return 2;
+    fprintf(stderr, "%s\n", err->message);
+    g_error_free(err);
+    return status;
 }
 
 /* ---- keyboard ---- */
@@ -338,130 +346,38 @@ static gboolean on_stdin(GIOChannel *ch, GIOCondition cond, gpointer data)
     return G_SOURCE_CONTINUE;
 }
 
-/* ---- --secret ---- */
-static int retrieve_secret(void)
-{
-    int fds[2];
-    if (pipe2(fds, O_CLOEXEC) < 0) {
-        fprintf(stderr, "pipe: %s\n", g_strerror(errno));
-        return 2;
-    }
-    GUnixFDList *fd_list = g_unix_fd_list_new();
-    gint idx = g_unix_fd_list_append(fd_list, fds[1], NULL);
-    close(fds[1]);
-
-    char *tok = new_token();
-    char *sp = sender_path();
-    char *req_path = g_strdup_printf("/org/freedesktop/portal/desktop/request/%s/%s", sp, tok);
-    Response r = { g_main_loop_new(NULL, FALSE), 0, NULL };
-    guint sub = g_dbus_connection_signal_subscribe(conn, PORTAL_BUS, REQ_IFACE, "Response",
-        req_path, NULL, G_DBUS_SIGNAL_FLAGS_NONE, on_response, &r, NULL);
-
-    GVariantBuilder b;
-    g_variant_builder_init(&b, G_VARIANT_TYPE("a{sv}"));
-    g_variant_builder_add(&b, "{sv}", "handle_token", g_variant_new_string(tok));
-    GError *err = NULL;
-    GVariant *ret = g_dbus_connection_call_with_unix_fd_list_sync(conn, PORTAL_BUS, PORTAL_PATH,
-        SECRET_IFACE, "RetrieveSecret", g_variant_new("(ha{sv})", idx, &b), NULL,
-        G_DBUS_CALL_FLAGS_NONE, CALL_TIMEOUT_MS, fd_list, NULL, NULL, &err);
-    /* Drop our copy of the write end, so the read below ends at the portal's close. */
-    g_object_unref(fd_list);
-    if (ret) {
-        g_variant_unref(ret);
-        GSource *to = g_timeout_source_new_seconds(RESPONSE_TIMEOUT_S);
-        g_source_set_callback(to, on_response_timeout, &r, NULL);
-        g_source_attach(to, NULL);
-        g_main_loop_run(r.loop);
-        g_source_destroy(to);
-        g_source_unref(to);
-        last_response = r.code;
-    } else {
-        fprintf(stderr, "RetrieveSecret: %s\n", err->message);
-        g_error_free(err);
-        last_response = 2;
-    }
-    if (r.results) g_variant_unref(r.results);
-    g_dbus_connection_signal_unsubscribe(conn, sub);
-    g_main_loop_unref(r.loop);
-    g_free(req_path);
-    g_free(sp);
-    g_free(tok);
-
-    int status = last_response == 0 ? 0 : exit_code();
-    GByteArray *secret = g_byte_array_new();
-    if (status == 0) {
-        guint8 buf[256];
-        struct pollfd pfd = { fds[0], POLLIN, 0 };
-        for (;;) {
-            int ready = poll(&pfd, 1, 5000);
-            if (ready <= 0) break; /* a backend that never closes its end */
-            ssize_t n = read(fds[0], buf, sizeof buf);
-            if (n < 0 && errno == EINTR) continue;
-            if (n <= 0) break;
-            g_byte_array_append(secret, buf, (guint)n);
-            if (secret->len > 4096) break;
-        }
-        if (secret->len < 16) {
-            fprintf(stderr, "RetrieveSecret: secret too short (%u bytes)\n", secret->len);
-            status = 2;
-        } else {
-            char *b64 = g_base64_encode(secret->data, secret->len);
-            reply("%s", b64);
-            memset(b64, 0, strlen(b64));
-            g_free(b64);
-        }
-        memset(secret->data, 0, secret->len);
-    }
-    g_byte_array_free(secret, TRUE);
-    close(fds[0]);
-    return status;
-}
-
-int main(int argc, char **argv)
+int main(void)
 {
     const char *restore_token = g_getenv("PORTAL_INPUT_RESTORE_TOKEN");
-    for (int i = 1; i < argc; i++)
-        if (strcmp(argv[i], "--restore-token") == 0 && i + 1 < argc) restore_token = argv[++i];
-
     GError *err = NULL;
+    int status;
     conn = g_bus_get_sync(G_BUS_TYPE_SESSION, NULL, &err);
     if (!conn) {
         fprintf(stderr, "session bus: %s\n", err->message);
         return 1;
     }
     loop = g_main_loop_new(NULL, FALSE);
-    for (int i = 1; i < argc; i++)
-        if (strcmp(argv[i], "--secret") == 0) return retrieve_secret();
 
     GVariantBuilder b;
-    char *tok = new_token(), *session_tok = new_token();
-    g_variant_builder_init(&b, G_VARIANT_TYPE("a{sv}"));
-    g_variant_builder_add(&b, "{sv}", "handle_token", g_variant_new_string(tok));
+    char *tok = request_options(&b);
+    char *session_tok = new_token();
     g_variant_builder_add(&b, "{sv}", "session_handle_token", g_variant_new_string(session_tok));
-    GVariant *res = request("CreateSession", g_variant_new("(a{sv})", &b), tok, &err);
-    g_free(tok);
     g_free(session_tok);
-    if (!res) {
-        fprintf(stderr, "%s\n", err->message);
-        return exit_code();
-    }
+    GVariant *res = request(RD_IFACE, "CreateSession", g_variant_new("(a{sv})", &b), tok,
+        &status, &err);
+    if (!res) return fail(err, status);
     g_variant_lookup(res, "session_handle", "s", &session_handle);
     g_variant_unref(res);
 
     /* Keyboard only, kept until the user revokes it. */
-    tok = new_token();
-    g_variant_builder_init(&b, G_VARIANT_TYPE("a{sv}"));
-    g_variant_builder_add(&b, "{sv}", "handle_token", g_variant_new_string(tok));
+    tok = request_options(&b);
     g_variant_builder_add(&b, "{sv}", "types", g_variant_new_uint32(DEVICE_KEYBOARD));
     g_variant_builder_add(&b, "{sv}", "persist_mode", g_variant_new_uint32(PERSIST_UNTIL_REVOKED));
     if (restore_token && *restore_token)
         g_variant_builder_add(&b, "{sv}", "restore_token", g_variant_new_string(restore_token));
-    res = request("SelectDevices", g_variant_new("(oa{sv})", session_handle, &b), tok, &err);
-    g_free(tok);
-    if (!res) {
-        fprintf(stderr, "%s\n", err->message);
-        return exit_code();
-    }
+    res = request(RD_IFACE, "SelectDevices", g_variant_new("(oa{sv})", session_handle, &b), tok,
+        &status, &err);
+    if (!res) return fail(err, status);
     g_variant_unref(res);
 
     /* RequestClipboard must come before Start. It answers directly. Portals
@@ -476,15 +392,10 @@ int main(int argc, char **argv)
         g_clear_error(&err);
     }
 
-    tok = new_token();
-    g_variant_builder_init(&b, G_VARIANT_TYPE("a{sv}"));
-    g_variant_builder_add(&b, "{sv}", "handle_token", g_variant_new_string(tok));
-    res = request("Start", g_variant_new("(osa{sv})", session_handle, "", &b), tok, &err);
-    g_free(tok);
-    if (!res) {
-        fprintf(stderr, "%s\n", err->message);
-        return exit_code();
-    }
+    tok = request_options(&b);
+    res = request(RD_IFACE, "Start", g_variant_new("(osa{sv})", session_handle, "", &b), tok,
+        &status, &err);
+    if (!res) return fail(err, status);
     char *new_restore = NULL;
     if (g_variant_lookup(res, "restore_token", "s", &new_restore) && new_restore) {
         reply("TOKEN %s", new_restore);
