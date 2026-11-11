@@ -44,10 +44,16 @@ function makeAutoUpdater({ offline = false } = {}) {
 
 // updater.js requires electron and child_process lazily (constructor, cleanup(),
 // Rosetta probe), so the mocks stay installed until afterEach.
-function createUpdateManager(autoUpdater) {
+function createUpdateManager(autoUpdater, { packageJson } = {}) {
   delete require.cache[updaterModulePath];
   Module._load = function loadWithMocks(request, parent, isMain) {
-    if (request === "electron-updater") return { autoUpdater };
+    if (packageJson && request === "../package.json" && parent?.filename === updaterModulePath) {
+      return packageJson;
+    }
+    if (request === "electron-updater") {
+      if (!autoUpdater) throw new Error("electron-updater must not be loaded");
+      return { autoUpdater };
+    }
     if (request === "electron") return { autoUpdater: { on() {}, removeListener() {} } };
     if (request === "child_process") return { execSync: () => "0" };
     return originalLoad.call(this, request, parent, isMain);
@@ -236,4 +242,32 @@ test("a Linux AppImage is supported, but deb/rpm/tar.gz installs never touch the
   assert.match(result.message, /package manager/);
 
   packaged.cleanup();
+});
+
+test("a build packaged with openwhisprBuild.updater=false never loads electron-updater", async (t) => {
+  t.mock.timers.enable({ apis: ["setTimeout", "setInterval"] });
+  const manager = createUpdateManager(null, {
+    packageJson: { openwhisprBuild: { updater: false } },
+  });
+
+  manager.checkForUpdatesOnStartup();
+  t.mock.timers.tick(STARTUP_DELAY_MS + PERIODIC_INTERVAL_MS);
+
+  assert.equal((await manager.checkForUpdates()).updateAvailable, false);
+  assert.equal((await manager.downloadUpdate()).success, false);
+  assert.equal((await manager.installUpdate()).success, false);
+  assert.equal(manager.hasStagedUpdate(), false);
+  manager.setAutoUpdatesEnabled(true);
+  manager.deferInstallOnQuit();
+  manager.cleanup();
+  t.mock.timers.reset();
+});
+
+test("the build flag only disables updates when it is exactly false", () => {
+  for (const openwhisprBuild of [undefined, {}, { updater: true }, { cloudOnly: true }]) {
+    const autoUpdater = makeAutoUpdater();
+    createUpdateManager(autoUpdater, { packageJson: { openwhisprBuild } });
+    const { updaterDisabledByBuild } = require(updaterModulePath);
+    assert.equal(updaterDisabledByBuild(), false, JSON.stringify(openwhisprBuild));
+  }
 });

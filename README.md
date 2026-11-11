@@ -78,6 +78,16 @@ The commands above run the desktop application, which remains at the repository 
 
 `npm run build:linux:cloud-only` packages the app without the bundled local engines (whisper.cpp, llama-server, sherpa-onnx, Qdrant), their models, ONNX Runtime or FFmpeg, and downloads none of them. Transcription and reasoning then use cloud providers only. This suits distro packages, sandboxed builds and audited deployments; see [`electron-builder.cloud-only.cjs`](electron-builder.cloud-only.cjs).
 
+### Packaging without the auto-updater
+
+Builds that are updated through another channel (distro packages, Flatpak, managed fleets) can turn the updater off at package time:
+
+```bash
+npx electron-builder --linux -c.extraMetadata.openwhisprBuild.updater=false -c.publish=null
+```
+
+The app then never loads `electron-updater`, never checks for updates and shows updates as managed by the system.
+
 ## Documentation
 
 Visit **[docs.openwhispr.com](https://docs.openwhispr.com)** for:
