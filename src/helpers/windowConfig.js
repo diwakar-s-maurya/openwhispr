@@ -257,11 +257,10 @@ const CONTROL_PANEL_CONFIG = {
     // The preload only uses contextBridge, ipcRenderer and webUtils, which a
     // sandboxed preload has, like the other windows that load it.
     sandbox: true,
-    // webSecurity: false disables same-origin policy. Required because in
-    // production the renderer loads from a file:// origin but makes
-    // cross-origin fetch calls to Better Auth, Gemini, OpenAI, and Groq APIs
-    // directly from the browser. These would be blocked by CORS otherwise.
-    webSecurity: false,
+    // Hardened build: same-origin policy stays on. Upstream turns it off for
+    // Better Auth's credentialed cross-origin calls; the account features are
+    // unreachable here, and the BYOK provider APIs answer CORS.
+    webSecurity: true,
     spellcheck: false,
     backgroundThrottling: false,
   },

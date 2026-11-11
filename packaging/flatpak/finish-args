@@ -1,0 +1,9 @@
+# flatpak build-finish arguments for local.surface.OpenWhispr, one per line.
+# Deliberately absent: --share=network, --share=ipc, --socket=x11,
+# --socket=fallback-x11, --filesystem=home/host, --device=all, --talk-name=*.
+# Portals (GlobalShortcuts, RemoteDesktop, Clipboard, OpenURI) are reachable
+# through xdg-desktop-portal without extra permissions.
+--socket=wayland
+--socket=pulseaudio
+--device=dri
+--filesystem=xdg-run/openwhispr-net:ro

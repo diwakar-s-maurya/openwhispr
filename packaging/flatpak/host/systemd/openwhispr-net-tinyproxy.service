@@ -1,0 +1,22 @@
+[Unit]
+Description=OpenWhispr egress filter (tinyproxy, provider allowlist)
+
+[Service]
+ExecStart=/usr/bin/tinyproxy -d -c /etc/openwhispr-net/tinyproxy.conf
+Restart=on-failure
+# Sandboxing: tinyproxy parses input from a possibly compromised app.
+NoNewPrivileges=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectSystem=strict
+ProtectHome=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+RestrictNamespaces=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+CapabilityBoundingSet=

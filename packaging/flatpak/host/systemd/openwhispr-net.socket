@@ -1,0 +1,10 @@
+[Unit]
+Description=OpenWhispr egress socket (the Flatpak's only way out)
+
+[Socket]
+ListenStream=%t/openwhispr-net/proxy.sock
+SocketMode=0600
+DirectoryMode=0700
+
+[Install]
+WantedBy=sockets.target

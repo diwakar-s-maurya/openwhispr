@@ -49,6 +49,7 @@
     "build:linux:tar": "npm run build:renderer && electron-builder --linux tar.gz",
     "prebuild:linux:cloud-only": "npm run compile:linux-paste && npm run compile:linuxkeys && npm run compile:linux-system-audio && npm run compile:text-monitor",
     "build:linux:cloud-only": "npm run build:renderer && electron-builder --linux --config electron-builder.cloud-only.cjs",
+    "build:linux:flatpak": "npm run compile:linux-portal-input && npm run build:renderer && electron-builder --linux --config electron-builder.flatpak.cjs",
     "prepack": "npm run compile:native && npm run download:whisper-cpp && npm run download:llama-server && npm run download:sherpa-onnx && npm run download:yt-dlp && npm run download:qdrant && npm run download:meeting-aec-helper && npm run download:whisper-vad-model && npm run download:diarization-models -- --output-dir resources/bin/diarization-models",
     "pack": "npm run build:renderer && cross-env CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --dir",
     "predist": "npm run compile:native && npm run download:whisper-cpp && npm run download:llama-server && npm run download:sherpa-onnx && npm run download:yt-dlp && npm run download:qdrant && npm run download:meeting-aec-helper && npm run download:whisper-vad-model && npm run download:diarization-models -- --output-dir resources/bin/diarization-models",

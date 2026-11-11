@@ -1,0 +1,34 @@
+# OpenWhispr egress allowlist: one POSIX extended regex per line, matched
+# against the destination host name (case-insensitive). Anything not matched
+# is refused. Only CONNECT to port 443 is allowed (see tinyproxy.conf).
+# Lives in /etc/openwhispr-net (root-owned). Edit with sudo, then:
+#   systemctl --user restart openwhispr-net-tinyproxy
+#
+# Source: upstream docs/network-allowlist.md, "BYOK provider hosts".
+# Delete the lines for providers you don't use.
+
+# Groq
+^api\.groq\.com$
+# OpenAI
+^api\.openai\.com$
+# Anthropic
+^api\.anthropic\.com$
+# Google Gemini
+^generativelanguage\.googleapis\.com$
+# Mistral
+^api\.mistral\.ai$
+# OpenRouter
+^openrouter\.ai$
+# Deepgram (HTTPS + WSS)
+^api\.deepgram\.com$
+# AssemblyAI (HTTPS + WSS)
+^api\.assemblyai\.com$
+^streaming\.assemblyai\.com$
+# Tinfoil (enclave hosts are assigned at runtime)
+^atc\.tinfoil\.sh$
+^([a-z0-9-]+\.)+tinfoil\.sh$
+# Azure OpenAI / AI Foundry: matches ANY customer's resource, including one an
+# attacker owns. Delete these three lines if you don't use Azure.
+^[a-z0-9-]+\.openai\.azure\.com$
+^[a-z0-9-]+\.cognitiveservices\.azure\.com$
+^[a-z0-9-]+\.services\.ai\.azure\.com$

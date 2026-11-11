@@ -24,6 +24,9 @@ const {
   session,
   systemPreferences,
 } = require("electron");
+// Hardened Flatpak build: the only way out is the host's filtering proxy
+// (OW_PROXY_SOCKET). Must run before anything loads ws or opens a window.
+require("./src/helpers/hardenedEgress").setupHardenedEgress({ app, session });
 const path = require("path");
 const http = require("http");
 const tls = require("tls");
