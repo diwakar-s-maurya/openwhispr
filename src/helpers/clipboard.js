@@ -6,6 +6,7 @@ const path = require("path");
 const fs = require("fs");
 const os = require("os");
 const debugLogger = require("./debugLogger");
+const { PortalInputSession } = require("./portalInput");
 const { getLinuxSessionInfo } = require("./linuxSession");
 const { getCosmicActiveAppId } = require("./cosmicToplevel");
 
@@ -482,6 +483,66 @@ class ClipboardManager {
       "linuxFastPasteChecked",
       "linuxFastPastePath"
     );
+  }
+
+  resolveLinuxPortalInputBinary() {
+    return this._resolveNativeBinary(
+      "linux-portal-input",
+      "linux",
+      "linuxPortalInputChecked",
+      "linuxPortalInputPath"
+    );
+  }
+
+  // The long-lived portal session (see portalInput.js), or null when this
+  // build or environment doesn't use it.
+  _getPortalInput() {
+    if (this.portalInput !== undefined) return this.portalInput;
+    const binaryPath = PortalInputSession.shouldUse() ? this.resolveLinuxPortalInputBinary() : null;
+    this.portalInput = binaryPath
+      ? new PortalInputSession({
+          binaryPath,
+          tokenPath: path.join(path.dirname(this._getPortalTokenPath()), "portal-input-token"),
+        })
+      : null;
+    return this.portalInput;
+  }
+
+  // Shift+Insert pastes in GTK, Qt and Chromium apps and in terminals alike, and the
+  // focused window's class isn't visible from a sandbox to pick per app.
+  _portalPasteKeys() {
+    const keys = process.env.OPENWHISPR_PORTAL_PASTE_KEYS;
+    return keys === "ctrl-v" || keys === "ctrl-shift-v" ? keys : "shift-insert";
+  }
+
+  // The portal session owns the selection, so the app neither reads nor restores
+  // the user's clipboard: the transcript stays on it after the paste. Returns
+  // null when the portal has no Clipboard interface, so the caller can use the
+  // regular path.
+  async _pasteViaPortalInput(portalInput, text) {
+    const keys = this._portalPasteKeys();
+    try {
+      await portalInput.paste(text, keys);
+      return { method: `portal-input:${keys}`, restoreComplete: Promise.resolve() };
+    } catch (error) {
+      if (error.code === "clipboard-unavailable") return null;
+      debugLogger.warn(
+        "Portal paste failed, leaving the text on the clipboard",
+        { code: error.code, error: error.message },
+        "clipboard"
+      );
+      try {
+        await portalInput.copy(text);
+      } catch {
+        clipboard.writeText(text);
+      }
+      return {
+        method: "portal-input",
+        pasted: false,
+        reason: `portal-input-${error.code || "failed"}`,
+        restoreComplete: Promise.resolve(),
+      };
+    }
   }
 
   _isYdotoolDaemonRunning() {
@@ -1044,6 +1105,22 @@ class ClipboardManager {
     const allowClipboardFallback = options.allowClipboardFallback === true;
 
     try {
+      const portalInput = platform === "linux" ? this._getPortalInput() : null;
+      if (portalInput) {
+        const portalResult = await this._pasteViaPortalInput(portalInput, text);
+        if (portalResult) {
+          method = portalResult.method;
+          this.safeLog("✅ Paste operation complete", {
+            platform,
+            method,
+            pasted: portalResult.pasted !== false,
+            elapsedMs: Date.now() - startTime,
+            textLength: text.length,
+          });
+          return portalResult;
+        }
+      }
+
       const shouldRestore = options.restoreClipboard !== false;
       const originalClipboard = shouldRestore ? this._saveClipboard() : null;
       const originalPrimary =
@@ -2550,6 +2627,11 @@ Would you like to open System Settings now?`;
   preWarmAccessibility() {
     if (process.platform === "linux") {
       this.resolveLinuxFastPasteBinary();
+      // Open the portal session now, so a first-time permission dialog doesn't
+      // take focus in the middle of a paste.
+      this._getPortalInput()
+        ?.start()
+        .catch(() => {});
       return;
     }
     if (process.platform !== "darwin") return;
@@ -2564,6 +2646,15 @@ Would you like to open System Settings now?`;
   // `xwaylandOnly`: where wl-copy is required (#2621), a write it didn't make reaches
   // native Wayland apps only while an OpenWhispr window has focus.
   async writeClipboard(text, webContents = null) {
+    const portalInput = process.platform === "linux" ? this._getPortalInput() : null;
+    if (portalInput) {
+      try {
+        await portalInput.copy(text);
+        return { success: true };
+      } catch (error) {
+        debugLogger.debug("Portal copy failed", { code: error.code }, "clipboard");
+      }
+    }
     if (process.platform === "linux" && this._isWayland()) {
       const wroteWayland = this._writeClipboardWayland(text, webContents);
       return {
@@ -2611,6 +2702,25 @@ Would you like to open System Settings now?`;
       isCosmic,
       requiresWlCopy,
     } = getLinuxSessionInfo();
+
+    if (this._getPortalInput()) {
+      return {
+        platform: "linux",
+        available: true,
+        method: "portal-input",
+        requiresPermission: true,
+        isWayland,
+        xwaylandAvailable,
+        hasNativeBinary: true,
+        hasUinput: false,
+        hasWtype: false,
+        isWlroots,
+        isCosmic,
+        wlCopyMissing: false,
+        tools: ["portal-input"],
+      };
+    }
+
     const linuxFastPaste = this.resolveLinuxFastPasteBinary();
     const hasNativeBinary = !!linuxFastPaste;
     let portalKeysymAvailable = false;

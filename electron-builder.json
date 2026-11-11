@@ -125,6 +125,7 @@
         "macos-media-remote",
         "MediaRemoteAdapter.framework/**",
         "linux-fast-paste",
+        "linux-portal-input",
         "linux-system-audio-helper",
         "linux-text-monitor",
         "linux-key-listener*",

@@ -74,6 +74,12 @@ Requires Node.js 24+. See the [full documentation](https://docs.openwhispr.com/q
 
 The commands above run the desktop application, which remains at the repository root. The Expo mobile application lives in [`openwhispr-mobile`](openwhispr-mobile/) with its own dependencies, lockfile, build configuration, and release process. See the [mobile README](openwhispr-mobile/README.md) for its setup instructions.
 
+### Pasting through the desktop portal (Linux)
+
+Inside a Flatpak, OpenWhispr pastes through one XDG RemoteDesktop portal session with the Clipboard portal attached (`resources/linux-portal-input.c`, built by `npm run compile:linux-portal-input`, needs `libglib2.0-dev`). The desktop asks for permission once; the session then lasts for the life of the app. The session owns the clipboard, so this works where a compositor ignores clipboard writes from an unfocused window, and the app never reads your clipboard: the transcript stays on it after the paste.
+
+Outside a Flatpak, set `OPENWHISPR_PASTE_BACKEND=portal-input` to use it. It presses Shift+Insert by default; `OPENWHISPR_PORTAL_PASTE_KEYS=ctrl-v` or `ctrl-shift-v` changes that.
+
 ## Documentation
 
 Visit **[docs.openwhispr.com](https://docs.openwhispr.com)** for:
